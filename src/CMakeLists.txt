@@ -1,5 +1,5 @@
 project(prt_lib CXX)
-add_library(prt_lib bvh.cpp triangle.cpp vecmath.cpp main.cpp thread_pool.cpp image.cpp mesh.cpp path_tracer.cpp camera.cpp sample_models.cpp)
+add_library(prt_lib bvh.cpp triangle.cpp vecmath.cpp main.cpp thread_pool.cpp image.cpp mesh.cpp path_tracer.cpp camera.cpp normal_visualizer.cpp sample_models.cpp)
 
 
 project(prt_main CXX)

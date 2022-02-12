@@ -125,7 +125,7 @@ void Mesh::loadObj(const char* path, const Material& mat)
         printf("Failed to open '%s'\n", path);
     }
 
-    auto findNs = [](const std::string& str, std::string::size_type pos, char d) {
+    auto findNonDelimiter = [](const std::string& str, std::string::size_type pos, char d) {
         for (auto i = pos; i < str.length(); i++) {
             if (str[i] != d)
                 return i;
@@ -134,8 +134,10 @@ void Mesh::loadObj(const char* path, const Material& mat)
     };
 
     // Apparently this allocates std::string from heap every time, which isn't good for performance
-    auto findToken = [&findNs](const std::string& str, std::string::size_type& pos, char d) {
-        auto vstart = findNs(str, pos, d);
+    auto findToken = [&findNonDelimiter](const std::string& str, std::string::size_type& pos, char d) {
+        auto vstart = findNonDelimiter(str, pos, d);
+        if (vstart == std::string::npos)
+            return std::string("");
         auto vend = str.find(d, vstart);
         pos = vend;
         return str.substr(vstart, vend - vstart + 1);

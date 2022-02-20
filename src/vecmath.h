@@ -76,21 +76,30 @@ inline floatvec_t _neon_sqrt(floatvec_t f) {
 }
 
 inline int32_t _neon_movemask(maskvec_t m) {
-    // TODO optimize?
-    int32_t r = 0;
-    for (uint32_t i = 0; i < SoaConstants::kLaneCount; i++)
-        r |= (vgetq_lane_u32(m, i) ? 1 : 0) << i;
+    int32_t r = (vgetq_lane_u32(m, 0) ? 1 : 0) << 0;
+    r |= (vgetq_lane_u32(m, 1) ? 1 : 0) << 1;
+    r |= (vgetq_lane_u32(m, 2) ? 1 : 0) << 2;
+    r |= (vgetq_lane_u32(m, 3) ? 1 : 0) << 3;
 
     return r;
 }
 
 inline bool _neon_anytrue(maskvec_t m) {
-    // TODO optimize?
-    uint32_t b = 0;
-    for (uint32_t i = 0; i < SoaConstants::kLaneCount; i++)
-        b |= vgetq_lane_u32(m, i);
-
+    uint32_t b = vgetq_lane_u32(m, 0);
+    b |= vgetq_lane_u32(m, 1);
+    b |= vgetq_lane_u32(m, 2);
+    b |= vgetq_lane_u32(m, 3);
     return (b != 0);
+}
+
+template<typename V, typename T>
+inline T _neon_getLane(V v, int32_t lane) {
+    union {
+        T i[SoaConstants::kLaneCount];
+        V v;
+    } u;
+    u.v = v;
+    return u.i[lane];
 }
 #endif
 
@@ -217,7 +226,7 @@ public:
 
     int32_t getLane(int32_t lane) const {
 #if defined(R_NEON)
-        return vgetq_lane_u32(m_mask, lane);
+        return _neon_getLane<intvec_t, int32_t>(m_mask, lane);
 #else
         union {
             float f;
@@ -337,7 +346,7 @@ public:
 
     int32_t getLane(int32_t lane) const {
 #if defined(R_NEON)
-        return vgetq_lane_s32(m_i, lane);
+        return _neon_getLane<intvec_t, int32_t>(m_i, lane);
 #else
         union {
             float f;
@@ -379,7 +388,7 @@ public:
 
     float getLane(int32_t lane) const {
 #if defined(R_NEON)
-        return vgetq_lane_f32(m_f, lane);
+        return _neon_getLane<floatvec_t, float>(m_f, lane);
 #elif defined(R_AVX4L)
         return _mm_cvtss_f32(_mm_permutevar_ps(m_f, _mm_set1_epi32(lane)));
 #elif defined(R_AVX8L)
@@ -387,10 +396,7 @@ public:
 #endif
     }
 
-    SoaFloat replaceLane(uint32_t lane, float f) const {
-#if defined(R_NEON)
-        return vsetq_lane_f32(f, m_f, lane);
-#else        
+    SoaFloat replaceLane(int32_t lane, float f) const {
         union {
             floatvec_t v;
             float f[SoaConstants::kLaneCount];
@@ -398,7 +404,6 @@ public:
         u.v = m_f;
         u.f[lane] = f;
         return u.v;
-#endif
     }
 
     SoaFloat min(const SoaFloat& f) const {
@@ -528,11 +533,9 @@ public:
 
     SoaVector3f(const Vector3f* v) {
 #if defined(R_NEON)
-        for (uint32_t i = 0; i < SoaConstants::kLaneCount; i++) {
-            m_x = vsetq_lane_f32(v[i].x, m_x, i);
-            m_y = vsetq_lane_f32(v[i].y, m_y, i);
-            m_z = vsetq_lane_f32(v[i].z, m_z, i);
-        }
+        m_x = {v[0].x, v[1].x, v[2].x, v[3].x};
+        m_y = {v[0].y, v[1].y, v[2].y, v[3].y};
+        m_z = {v[0].z, v[1].z, v[2].z, v[3].z};
 #elif defined(R_AVX4L)
         m_x = _mm_set_ps(v[3].x, v[2].x, v[1].x, v[0].x);
         m_y = _mm_set_ps(v[3].y, v[2].y, v[1].y, v[0].y);
@@ -585,9 +588,9 @@ public:
     Vector3f getLane(int32_t lane) const {
         Vector3f r;
 #if defined(R_NEON)
-        r.x = vgetq_lane_f32(m_x, lane);
-        r.y = vgetq_lane_f32(m_y, lane);
-        r.z = vgetq_lane_f32(m_z, lane);
+        r.x = _neon_getLane<floatvec_t, float>(m_x, lane);
+        r.y = _neon_getLane<floatvec_t, float>(m_y, lane);
+        r.z = _neon_getLane<floatvec_t, float>(m_z, lane);
 #else        
         auto index = AVX_INT(set1_epi32)(lane);
         r.x = AVX_INT(cvtss_f32)(AVX_INT(permutevar_ps)(m_x, index));
@@ -597,13 +600,9 @@ public:
         return r;
     }
 
-    SoaVector3f replaceLane(uint32_t lane, const Vector3f& v) const {
+    SoaVector3f replaceLane(int32_t lane, const Vector3f& v) const {
         SoaVector3f r;
-#if defined(R_NEON)
-        r.m_x = vsetq_lane_f32(v.x, m_x, lane);
-        r.m_y = vsetq_lane_f32(v.y, m_y, lane);
-        r.m_z = vsetq_lane_f32(v.z, m_z, lane);
-#elif defined(R_AVX4L) || defined(R_AVX8L)
+#if 1
         union {
             floatvec_t v;
             float f[SoaConstants::kLaneCount];

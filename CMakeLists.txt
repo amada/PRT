@@ -9,8 +9,11 @@ endif()
 project(prt CXX)
 
 set(CMAKE_CXX_STANDARD 17)
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -mavx2")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -flto=thin -mavx2 -Wall -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -flto=thin -Wall -Werror")
+if(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm64")
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
+endif()
 
 add_subdirectory(src)
 add_subdirectory(tests)

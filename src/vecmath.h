@@ -4,9 +4,12 @@
 #include <math.h>
 #include <cmath>
 
-//#define R_NEON
+#ifdef __aarch64__
+#define R_NEON
+#else
 #define R_AVX4L
 //#define R_AVX8L
+#endif
 
 #if defined(R_NEON)
 //#define __aarch64__

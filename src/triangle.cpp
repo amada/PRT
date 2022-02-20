@@ -110,8 +110,8 @@ SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3
     auto mask_y = max_e.equals(d.getY()).computeXor(mask_x);
 #endif
 
+// TODO: should not use SIMD intrinsics directly
 #if defined(R_NEON)
-// TODO: should not use AVX intrinsics directly
     auto swap = [](floatvec_t& v0, floatvec_t& v1, maskvec_t mask) {
         auto temp = vbslq_f32(mask, v1, v0);
         v1 = vbslq_f32(mask, v0, v1);
@@ -123,14 +123,13 @@ SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3
         swap(v.getRefRawY(), v.getRefRawZ(), mask_y.getRawValue());
     };
 
-    if (rmaskX.anyTrue() || maskY.anyTrue()) {
+    if (maskX.anyTrue() || maskY.anyTrue()) {
         z_as_max(d, maskX, maskY);
         z_as_max(v0r, maskX, maskY);
         z_as_max(v1r, maskX, maskY);
         z_as_max(v2r, maskX, maskY);
     }
 #else
-// TODO: should not use AVX intrinsics directly
     auto swap = [](floatvec_t& v0, floatvec_t& v1, maskvec_t mask) {
         auto temp = AVX_INT(blendv_ps)(v0, v1, mask);
         v1 = AVX_INT(blendv_ps)(v1, v0, mask);
@@ -157,7 +156,6 @@ SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3
 #endif
 
 #endif
-
 
     auto v0z = v0r.getZ();
     auto v1z = v1r.getZ();

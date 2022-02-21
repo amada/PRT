@@ -4,7 +4,7 @@
 #include <math.h>
 #include <cmath>
 
-#ifdef __aarch64__
+#ifdef __ARM_NEON__
 #define R_NEON
 #else
 #define R_AVX4L
@@ -12,7 +12,6 @@
 #endif
 
 #if defined(R_NEON)
-//#define __aarch64__
 #include <arm_neon.h>
 #else
 #include <xmmintrin.h>
@@ -62,20 +61,28 @@ inline int32_t bitScanForward(int32_t bits) {
 #ifdef R_NEON
 // Arm Neon
 inline floatvec_t _neon_div(floatvec_t n, floatvec_t d) {
+#ifdef __arch64__
+    return vdivq_f32(n, d);
+#else // __arch64__
     // aarch64 vdivq_f32
     auto r = vrecpeq_f32(d);
     r = vmulq_f32(vrecpsq_f32(d, r), r);
     r = vmulq_f32(vrecpsq_f32(d, r), r);
     return vmulq_f32(n, r);
+#endif // __arch64__
 }
 
 inline floatvec_t _neon_sqrt(floatvec_t f) {
+#ifdef __arch64__
+    return vsqrt_f32(f);
+#else // __arch64__
     // aarch64 vsqrtq_f32
     auto e = vrsqrteq_f32(f); // Estimation of 1/sqrt(f)
     // vrsqrtsq_f32(d, xn) = (3 - d*xn)/2
     // e*(3-f*e*e)/2
     e = vmulq_f32(vrsqrtsq_f32(vmulq_f32(f, e), e), e);
     return vmulq_f32(f, e); // f/sqrt(f)
+#endif // __aarch64__
 }
 
 inline int32_t _neon_movemask(maskvec_t m) {

@@ -311,6 +311,18 @@ void Scene::getSurfaceProperties(T& properties, const U& intr) const
             normal = normalize(cross(p1 - p0, p2 - p0));
         }
 
+// TODO: remove indirection?
+// use 3 floats at once
+        v0 = mesh.getTexcoordIndex(indexBase + 0);
+        v1 = mesh.getTexcoordIndex(indexBase + 1);
+        v2 = mesh.getTexcoordIndex(indexBase + 2);
+        #if 1
+        const auto& t0 = mesh.getTexcoord(v0);
+        const auto& t1 = mesh.getTexcoord(v1);
+        const auto& t2 = mesh.getTexcoord(v2);
+        properties.uv = intr.i*t0 + intr.j*t1 + intr.k*t2;
+        #endif
+
         properties.normal = normal;
         properties.material = &mesh.getMaterial(mesh.getPrimToMaterial(intr.primId));
     } else if constexpr (std::is_same<U, SoaRayIntersection>::value) {

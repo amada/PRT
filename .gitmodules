@@ -1,0 +1,9 @@
+[submodule "ext/tinyobjloader"]
+	path = ext/tinyobjloader
+	url = https://github.com/tinyobjloader/tinyobjloader
+[submodule "ext/stb"]
+	path = ext/stb
+	url = https://github.com/nothings/stb
+[submodule "ext/tinyexr"]
+	path = ext/tinyexr
+	url = https://github.com/syoyo/tinyexr

@@ -14,6 +14,7 @@ if(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm64")
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
 endif()
+add_link_options("-lz")
 
 add_subdirectory(src)
 add_subdirectory(tests)

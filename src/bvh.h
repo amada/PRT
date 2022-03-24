@@ -131,6 +131,7 @@ struct SurfacePropertiesT
 {
     T normal;
     U material;
+    Vector2f uv;
 };
 
 using SurfaceProperties = SurfacePropertiesT<Vector3f, const Material*>;

@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <vector>
-#include <fstream>
+#include <filesystem>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "../ext/tinyobjloader/tiny_obj_loader.h"
+#include "log.h"
 #include "vecmath.h"
 #include "triangle.h"
 
@@ -17,6 +19,8 @@ namespace prt
 
 Mesh::Mesh(Mesh&& m)
 {
+    // TODO is this needed?
+    __builtin_trap();
     m_indices = m.m_indices;
     m_positions = m.m_positions;
     m_normals = m.m_normals;
@@ -38,12 +42,15 @@ Mesh::Mesh(Mesh&& m)
 Mesh& Mesh::operator=(Mesh&& m)
 {
     m_indices = m.m_indices;
+    m_texcoordIndices = m.m_texcoordIndices;
     m_positions = m.m_positions;
+    m_texcoords = m.m_texcoords;
     m_normals = m.m_normals;
     m_primMaterial = m.m_primMaterial;
     m_materials = m.m_materials;
     m_indexCount = m.m_indexCount;
     m_vertexCount = m.m_vertexCount;
+    m_texcoordsCount = m.m_texcoordsCount;
     m_hasVertexNormal = m.m_hasVertexNormal;
 
     m.m_indices = nullptr;
@@ -70,7 +77,9 @@ void Mesh::create(uint32_t primCount, uint32_t vertexCount, uint32_t materialCou
 {
     uint32_t indexCount = primCount*kVertexCountPerPrim;
     m_indices = new uint32_t[indexCount];
+    m_texcoordIndices = new uint32_t[indexCount]; // TODO fixme
     m_positions = new Vector3f[vertexCount];
+    m_texcoords = new Vector2f[vertexCount]; // TODO fixme
     if (hasVertexNormal) {
         m_normals = new Vector3f[vertexCount];
     }
@@ -119,73 +128,66 @@ void Mesh::calculateVertexNormals()
 
 void Mesh::loadObj(const char* path, const Material& mat)
 {
-    std::ifstream file(path);
+    tinyobj::ObjReader objReader;
+    auto res = objReader.ParseFromFile(path);
 
-    if (!file.is_open()) {
-        printf("Failed to open '%s'\n", path);
+    if (!res) {
+        logPrintf(LogLevel::kError, "Failed to load %s\n", path);
+        return;
     }
 
-    auto findNonDelimiter = [](const std::string& str, std::string::size_type pos, char d) {
-        for (auto i = pos; i < str.length(); i++) {
-            if (str[i] != d)
-                return i;
-        }
-        return std::string::npos;
-    };
+    std::filesystem::path objPath(path);
+    std::vector<Material> materials;
+    materials.resize(objReader.GetMaterials().size());
+    uint32_t mi = 0;
+    for (auto srcMat: objReader.GetMaterials()) {
+        auto& m = materials[mi];
+        m.load(srcMat, objPath.parent_path());
+        mi++;
+    }
 
-    // Apparently this allocates std::string from heap every time, which isn't good for performance
-    auto findToken = [&findNonDelimiter](const std::string& str, std::string::size_type& pos, char d) {
-        auto vstart = findNonDelimiter(str, pos, d);
-        if (vstart == std::string::npos)
-            return std::string("");
-        auto vend = str.find(d, vstart);
-        pos = vend;
-        return str.substr(vstart, vend - vstart + 1);
-    };
-
-    std::vector<Vector3f> vertices;
+    std::vector<uint32_t> primMat;
     std::vector<uint32_t> indices;
-    std::string line;
-    while (getline(file, line)) {
-        auto spos = line.find(' ');
-        auto str = line.substr(0, spos);
-        if (str == "v") {
-            float v[3];
-            auto pos = spos;
-            for (uint32_t i = 0; i < 3; i++) {
-                auto vstr = findToken(line, pos, ' ');
-                v[i] = std::atof(vstr.c_str());
-            }
-            vertices.push_back(Vector3f(v[0], v[1], v[2]));
-//            printf("(%f, %f, %f)\n", v[0], v[1], v[2]);
-        } else if (str == "vn") {
-        } else if (str == "f") {
-            int f[4]; // Can be quad
-            auto pos = spos;
-            for (uint32_t i = 0; i < std::size(f); i++) {
-                auto fstr = findToken(line, pos, ' ');
-                std::string::size_type temp = 0;
-                auto fvstr = findToken(fstr, temp, '/');
-                f[i] = std::atoi(fvstr.c_str()) - 1;
-            }
+    std::vector<uint32_t> texcoordIndices;
 
-            const int32_t kInvalidIndex = -1; // When std::atoi fails to convert, it returns 0; 0 isn't valid index for .obj format
-            indices.insert(indices.end(), {(uint32_t)f[0], (uint32_t)f[1], (uint32_t)f[2]});
-            if (f[3] != kInvalidIndex)
-                indices.insert(indices.end(), {(uint32_t)f[0], (uint32_t)f[2], (uint32_t)f[3]});
-
-//            printf("(%i, %i, %i, %i)\n", f[0], f[1], f[2], f[3]);
+    for (auto s: objReader.GetShapes()) {
+        // TODO: not taking care of normal and texture coords
+        auto& srcIndices = s.mesh.indices;
+        indices.reserve(indices.size() + srcIndices.size());
+        // TODO can be insert
+        for (auto i: srcIndices) {
+            indices.push_back(i.vertex_index);
+            texcoordIndices.push_back(i.texcoord_index);
         }
+
+        primMat.insert(primMat.end(), s.mesh.material_ids.begin(), s.mesh.material_ids.end());
     }
-    file.close();
+
+    auto& attr = objReader.GetAttrib();
+    auto& srcVertices = attr.vertices;
+    auto& srcTexcoords = attr.texcoords;
+
+    printf("v=%zu, t=%zu, ti=%zu\n", srcVertices.size(), srcTexcoords.size(), texcoordIndices.size());
 
     uint32_t primCount = indices.size()/Mesh::kVertexCountPerPrim;
-    create(primCount, vertices.size(), 1, false);
+    const uint32_t kFloatCountPerVertex = 3;
+    create(primCount, srcVertices.size()/kFloatCountPerVertex, materials.size(), false);
 
-    memcpy(getIndexBuffer(), &indices[0], indices.size()*sizeof(uint32_t));
-    memcpy(getPositionBuffer(), &vertices[0], vertices.size()*sizeof(Vector3f));
-    memset(getPrimMateialBuffer(), 0, primCount*sizeof(uint32_t));
-    memcpy(getMaterialBuffer(), &mat, sizeof(Material));
+    const uint32_t kFloatCountPerTexcoord = 2;
+
+    memcpy(getIndexBuffer(), indices.data(), indices.size()*sizeof(uint32_t));
+    memcpy(getPositionBuffer(), srcVertices.data(), srcVertices.size()*sizeof(float));
+
+    m_texcoordsCount = srcTexcoords.size()/kFloatCountPerTexcoord;
+    memcpy(m_texcoordIndices, texcoordIndices.data(), texcoordIndices.size()*sizeof(uint32_t));
+    memcpy(m_texcoords, srcTexcoords.data(), srcTexcoords.size()*sizeof(float));
+
+    memcpy(getPrimMateialBuffer(), primMat.data(), primCount*sizeof(uint32_t));
+//    memset(getPrimMateialBuffer(), 0, primCount*sizeof(uint32_t));
+    memcpy(getMaterialBuffer(), materials.data(), materials.size()*sizeof(Material));
+//    memcpy(getMaterialBuffer(), &mat, sizeof(Material));
+
+    logPrintf(LogLevel::kVerbose, "finished loading\n");
 }
 
 

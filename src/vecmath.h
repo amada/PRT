@@ -116,6 +116,24 @@ inline T _neon_getLane(V v, int32_t lane) {
 static const float kPi = M_PI;
 
 
+class Vector2f
+{
+public:
+    Vector2f() = default;
+    Vector2f(float _x, float _y) : x(_x), y(_y) {}
+
+    Vector2f operator+(const Vector2f& v) const {
+        return Vector2f(x + v.x, y + v.y);
+    }
+
+    friend Vector2f operator*(float f, const Vector2f& v) {
+        return Vector2f(f*v.x, f*v.y);
+    }
+
+    float x;
+    float y;
+};
+
 // TODO: Add unaligned Vector3f
 class Vector3f
 {
@@ -132,6 +150,11 @@ public:
     Vector3f() = default;
     Vector3f(float f) : x(f), y(f), z(f) {}
     Vector3f(float _x, float _y, float _z) : x(_x), y(_y), z(_z) {}
+    Vector3f(const float* v, uint32_t size) {
+        x = v[0];
+        y = v[1];
+        z = v[2];
+    }
 
     uint32_t GetLongestElement() const {
         if (x > y) {
@@ -190,15 +213,20 @@ public:
     }
 };
 
-class Vector4
+
+class Vector4f
 {
 public:
+    Vector4f() = default;
+    Vector4f(float _x, float _y, float _z, float _w) : x(_x), y(_y), z(_z), w(_w) {}
+
+    Vector3f getXYZ() const { return Vector3f(x, y, z); }
+
     float x;
     float y;
     float z;
     float w;
 };
-
 
 
 class SoaMask

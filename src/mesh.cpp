@@ -136,6 +136,53 @@ void Mesh::loadObj(const char* path, const Material& mat)
         return;
     }
 
+    std::vector<uint32_t> indices;
+    std::vector<uint32_t> texcoordIndices;
+
+    for (auto s: objReader.GetShapes()) {
+        // TODO: not taking care of normal and texture coords
+        auto& srcIndices = s.mesh.indices;
+        indices.reserve(indices.size() + srcIndices.size());
+        // TODO can be insert
+        for (auto i: srcIndices) {
+            indices.push_back(i.vertex_index);
+            texcoordIndices.push_back(i.texcoord_index);
+        }
+    }
+
+    auto& attr = objReader.GetAttrib();
+    auto& srcVertices = attr.vertices;
+    auto& srcTexcoords = attr.texcoords;
+
+    uint32_t primCount = indices.size()/Mesh::kVertexCountPerPrim;
+    const uint32_t kFloatCountPerVertex = 3;
+    create(primCount, srcVertices.size()/kFloatCountPerVertex, 1, false);
+
+    const uint32_t kFloatCountPerTexcoord = 2;
+
+    memcpy(getIndexBuffer(), indices.data(), indices.size()*sizeof(uint32_t));
+    memcpy(getPositionBuffer(), srcVertices.data(), srcVertices.size()*sizeof(float));
+
+    m_texcoordsCount = srcTexcoords.size()/kFloatCountPerTexcoord;
+    memcpy(m_texcoordIndices, texcoordIndices.data(), texcoordIndices.size()*sizeof(uint32_t));
+    memcpy(m_texcoords, srcTexcoords.data(), srcTexcoords.size()*sizeof(float));
+
+    memset(getPrimMateialBuffer(), 0, primCount*sizeof(uint32_t));
+    memcpy(getMaterialBuffer(), &mat, sizeof(Material));
+
+    logPrintf(LogLevel::kVerbose, "finished loading '%s'\n", path);
+}
+
+void Mesh::loadObj(const char* path)
+{
+    tinyobj::ObjReader objReader;
+    auto res = objReader.ParseFromFile(path);
+
+    if (!res) {
+        logPrintf(LogLevel::kError, "Failed to load %s\n", path);
+        return;
+    }
+
     std::filesystem::path objPath(path);
     std::vector<Material> materials;
     materials.resize(objReader.GetMaterials().size());
@@ -167,8 +214,6 @@ void Mesh::loadObj(const char* path, const Material& mat)
     auto& srcVertices = attr.vertices;
     auto& srcTexcoords = attr.texcoords;
 
-    printf("v=%zu, t=%zu, ti=%zu\n", srcVertices.size(), srcTexcoords.size(), texcoordIndices.size());
-
     uint32_t primCount = indices.size()/Mesh::kVertexCountPerPrim;
     const uint32_t kFloatCountPerVertex = 3;
     create(primCount, srcVertices.size()/kFloatCountPerVertex, materials.size(), false);
@@ -183,11 +228,9 @@ void Mesh::loadObj(const char* path, const Material& mat)
     memcpy(m_texcoords, srcTexcoords.data(), srcTexcoords.size()*sizeof(float));
 
     memcpy(getPrimMateialBuffer(), primMat.data(), primCount*sizeof(uint32_t));
-//    memset(getPrimMateialBuffer(), 0, primCount*sizeof(uint32_t));
     memcpy(getMaterialBuffer(), materials.data(), materials.size()*sizeof(Material));
-//    memcpy(getMaterialBuffer(), &mat, sizeof(Material));
 
-    logPrintf(LogLevel::kVerbose, "finished loading\n");
+    logPrintf(LogLevel::kVerbose, "finished loading '%s'\n", path);
 }
 
 

@@ -7,7 +7,7 @@
 namespace prt
 {
 
-Image::Image(uint32_t width, uint32_t height) : m_width(width), m_height(height)
+Image::Image(uint32_t width, uint32_t height, bool tonemap) : m_width(width), m_height(height), m_tonemap(tonemap)
 {
     size_t size = 3*width*height;
     m_pixels = new uint8_t[size];

@@ -20,7 +20,7 @@ void PathTracer::TraceBlock(Image& image, uint32_t x0, uint32_t y0, uint32_t x1,
         for (uint32_t x = x0; x <= x1; x++) {
             Vector3f color = Trace(camera, scene, x, y, samples);
 
-            color = 1.0f*2/samples*color;
+            color = color/samples;
 
             image.WritePixel(x, y, color);
         }

@@ -6,6 +6,7 @@
 #include "camera.h"
 #include "ray.h"
 #include "bvh.h"
+#include "scene.h"
 #include "image.h"
 #include "diffuse_visualizer.h"
 

@@ -22,9 +22,18 @@ public:
 private:
     Vector3f SoaTrace(const Camera& camera, const Scene& scene, uint32_t x, uint32_t y, uint32_t samples);
 
+/*
     Vector3f ComputeRadiance(
         const Scene& scene,
         const Vector3f& rayDir, const Vector3f& pos, const Vector3f& normal, const Material* material, uint32_t depth);
+*/
+    Vector3f ComputeRadiance(
+        const Scene& scene,
+        const Vector3f& rayDir, const Vector3f& pos, const SurfaceProperties& prop);
+
+    Vector3f ComputeRadiance(
+        const Scene& scene,
+        const Vector3f& rayDir, const Vector3f& pos, const SurfaceProperties& prop, uint32_t depth);
 
     Random m_rand;
 

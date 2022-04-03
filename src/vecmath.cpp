@@ -17,8 +17,12 @@ static_assert(std::is_pod<SoaVector3f>::value, "SoaVector3f must be POD");
 static_assert(std::is_pod<BBox>::value, "BBox must be POD");
 
 
-void Vector3f::print() const {
-    printf("(%f, %f, %f)\n", x, y, z);
+void Vector3f::print(const char* tag) const {
+    if (tag == nullptr) {
+        printf("(%f, %f, %f)\n", x, y, z);
+    } else {
+        printf("[%s] (%f, %f, %f)\n", tag, x, y, z);
+    }
 }
 
 

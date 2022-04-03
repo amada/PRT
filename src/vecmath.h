@@ -172,7 +172,11 @@ public:
         }
     }
 
-    void print() const;
+    bool isNonZero() const {
+        return x != 0 || y != 0 || z != 0;
+    }
+
+    void print(const char* tag = nullptr) const;
 
     void set(float _x, float _y, float _z) {
         x = _x;

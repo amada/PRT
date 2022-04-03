@@ -284,81 +284,109 @@ void Bvh::intersect(T& intr, const U& ray) const
     } while (current >= 0);
 }
 
+template void Bvh::intersect<RayIntersection, Ray>(RayIntersection&, const Ray&) const;
+template void Bvh::intersect<SoaRayIntersection, SoaRay>(SoaRayIntersection&, const SoaRay&) const;
 
-template<typename T, typename U>
-void Scene::getSurfaceProperties(T& properties, const U& intr) const
+
+template<typename T, typename R>
+T Bvh::occluded(const R& ray) const
 {
-    if constexpr (std::is_same<U, RayIntersection>::value) {
-        Vector3f normal;
+    const uint32_t kStackSize = 64;
+    int32_t current = 0;
+    LinearBvhNode* nodes[kStackSize];
+    nodes[current] = &m_nodes[0];
 
-        auto bvh = m_bvh[intr.meshId];
-        auto& mesh = bvh->m_mesh;
+    SoaMask masks[kStackSize];
+    if constexpr (std::is_same<R, SoaRay>::value) {
+        masks[current] = SoaMask::initAllTrue();
+    }
 
-        uint32_t indexBase = intr.primId*Mesh::kVertexCountPerPrim;
-        uint32_t v0 = mesh.getIndex(indexBase + 0);
-        uint32_t v1 = mesh.getIndex(indexBase + 1);
-        uint32_t v2 = mesh.getIndex(indexBase + 2);
+    do {
+        auto node = nodes[current];
+        auto mask = masks[current];
 
-        if (bvh->m_mesh.hasVertexNormal()) {
-            const auto &n0 = mesh.getNormal(v0);
-            const auto &n1 = mesh.getNormal(v1);
-            const auto &n2 = mesh.getNormal(v2);
-            normal = normalize(intr.i * n0 + intr.j * n1 + intr.k * n2);
+        auto t = node->bbox.intersect(ray.org, ray.dir, ray.invDir);
+        bool hit;
+
+        if constexpr (std::is_same<R, Ray>::value) {
+            hit = (t != BBox::kNoHit && t < ray.maxT);
+        } else if constexpr (std::is_same<R, SoaRay>::value) {
+            auto maskBbox = t.notEquals(BBox::kNoHit).computeAnd(t.lessThan(ray.maxT));
+
+            mask = maskBbox & mask;
+            hit = mask.anyTrue();
+        }
+
+        if (!hit) {
+            // Do nothing
+        } else if (node->primCount == LinearBvhNode::kInternalNode) {
+            if (hit) {
+                // TODO: order
+                nodes[current + 0] = node + 1;
+                nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
+                if constexpr (std::is_same<R, SoaRay>::value) {
+                    masks[current + 0] = mask;
+                    masks[current + 1] = mask;
+                }
+
+                current += 2;
+
+                if (current >= kStackSize) {
+                    __builtin_trap();
+                }
+            }
         } else {
-            const Vector3f &p0 = mesh.getPosition(v0);
-            const Vector3f &p1 = mesh.getPosition(v1);
-            const Vector3f &p2 = mesh.getPosition(v2);
-            normal = normalize(cross(p1 - p0, p2 - p0));
+            auto& m = m_mesh;
+
+            for (int32_t i = 0; i < node->primCount; i++) {
+                uint32_t primIndex = m_primRemapping[node->primOrSecondNodeIndex + i];
+                uint32_t indexBase = primIndex*Mesh::kVertexCountPerPrim;
+                // TODO skip two-level indircection
+                uint32_t v0 = m.getIndex(indexBase + 0);
+                uint32_t v1 = m.getIndex(indexBase + 1);
+                uint32_t v2 = m.getIndex(indexBase + 2);
+                const Vector3f &p0 = m.getPosition(v0);
+                const Vector3f &p1 = m.getPosition(v1);
+                const Vector3f &p2 = m.getPosition(v2);
+
+                static_assert(kEpsilon > TriangleIntersection::kNoIntersection, "kEpsilon must be larger than TriangleIntersectionT::kNoIntersection to reject no intersection");
+
+                if constexpr (std::is_same<R, Ray>::value) {
+                    // TODO use intersectTriangle dedicated for occluded
+                    auto triIntr = intersectTriangle(ray.org, ray.dir, p0, p1, p2);
+
+                    if (triIntr.t >= kEpsilon && triIntr.t < ray.maxT) {
+                        return true;
+                    }
+                } 
+                #if 0 // SoaRay isn't supported yet
+                else if constexpr (std::is_same<U, SoaRay>::value) {
+                    auto triIntr = intersectTriangle(mask, ray.org, ray.dir, ray.maskX, ray.maskY, p0, p1, p2);
+
+                    auto maskHit = triIntr.t.greaterThanOrEqual(kEpsilon) & triIntr.t.lessThan(ray.maxT);
+
+                    maskHit = maskHit & mask;
+
+                    if (maskHit.anyTrue()) {
+                        intr.t = select(intr.t, triIntr.t, maskHit);
+                        intr.i = select(intr.i, triIntr.i, maskHit);
+                        intr.j = select(intr.j, triIntr.j, maskHit);
+                        intr.k = select(intr.k, triIntr.k, maskHit);
+                        intr.primId = select(intr.primId, primIndex, maskHit);
+                        intr.meshId = select(intr.meshId, m_id, maskHit);
+                    }
+                }
+                #endif
+            }
         }
 
-// TODO: remove indirection?
-// use 3 floats at once
-        v0 = mesh.getTexcoordIndex(indexBase + 0);
-        v1 = mesh.getTexcoordIndex(indexBase + 1);
-        v2 = mesh.getTexcoordIndex(indexBase + 2);
-        #if 1
-        const auto& t0 = mesh.getTexcoord(v0);
-        const auto& t1 = mesh.getTexcoord(v1);
-        const auto& t2 = mesh.getTexcoord(v2);
-        properties.uv = intr.i*t0 + intr.j*t1 + intr.k*t2;
-        #endif
+        current--;
+    } while (current >= 0);
 
-        properties.normal = normal;
-        properties.material = &mesh.getMaterial(mesh.getPrimToMaterial(intr.primId));
-    } else if constexpr (std::is_same<U, SoaRayIntersection>::value) {
-        __builtin_trap();
-    } else {
-        __builtin_trap();
-    }
+    return false;
 }
 
-template void Scene::getSurfaceProperties<SurfaceProperties, RayIntersection>(SurfaceProperties&, const RayIntersection&) const;
+template bool Bvh::occluded<bool, Ray>(const Ray&) const;
 
-template<typename T, typename U>
-void Scene::intersect(T& intr, const U& ray) const
-{
-    memset(&intr, 0, sizeof(intr));
-
-    // Find intersection closer than maxT
-    intr.t = ray.maxT;
-
-    for (auto &bvh : m_bvh) {
-        // TODO ray transform per BVH
-
-        bvh->intersect(intr, ray);
-    }
-
-    if constexpr (std::is_same<U, Ray>::value) {
-        if (intr.t == ray.maxT) {
-            intr.t = RayIntersection::kNoHitT;
-        }
-    } else if constexpr (std::is_same<U, SoaRay>::value) {
-        auto mask = intr.t.equals(ray.maxT);
-        intr.t = select(intr.t, SoaRayIntersection::kNoHitT, mask);
-    }    
-}
-
-template void Scene::intersect<RayIntersection, Ray>(RayIntersection&, const Ray&) const;
-template void Scene::intersect<SoaRayIntersection, SoaRay>(SoaRayIntersection&, const SoaRay&) const;
 
 } // namespace prt

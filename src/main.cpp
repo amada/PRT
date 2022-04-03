@@ -11,6 +11,7 @@
 #include "sample_models.h"
 #include "camera.h"
 #include "bvh.h"
+#include "scene.h"
 #include "path_tracer.h"
 
 using namespace prt;
@@ -25,7 +26,7 @@ void raytrace_cornell_box()
  
     ThreadPool threadPool;
 
-    bool withBunny = true;
+    bool withBunny = false;
 
     Bvh cbox;
     cbox.build(SampleModels::getCornellBox(true));
@@ -40,16 +41,25 @@ void raytrace_cornell_box()
 #endif
 
 #if 0
-    bunny.build(SampleModels::getTeapot(
-        Vector3f(-0.5f, 0.0f, 0.5f), {
-        .diffuse = Vector3f{0.9f, 0.9f, 0.9f},
-        .reflectionType = ReflectionType::kSpecular
-        }));
+    Mesh teapot;
+    teapot.loadObj("../../data/teapot/teapot.obj",
+        {.diffuse = Vector3f{0.9f, 0.9f, 0.9f}, .reflectionType = ReflectionType::kDiffuse});
+    auto pos = teapot.getPositionBuffer();
+
+    for (uint32_t i = 0; i < teapot.getVertexCount(); i++) {
+//        float s = 0.3f;//1.0f;// 0.005f // bunny
+        float s = 0.005f; // teapot
+        pos[i] = s*pos[i] + Vector3f(-0.5f, 0.0f, 0.5f);
+    }
+    bunny.build(std::move(teapot));
+    withBunny = true;
 #endif
+
     Scene scene;
-    scene.Add(&cbox);
+    scene.init();
+    scene.add(&cbox);
     if (withBunny) {
-        scene.Add(&bunny);
+        scene.add(&bunny);
     }
 
 

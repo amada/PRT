@@ -6,6 +6,7 @@
 #include "camera.h"
 #include "ray.h"
 #include "bvh.h"
+#include "scene.h"
 #include "image.h"
 #include "path_tracer.h"
 
@@ -40,7 +41,7 @@ Vector3f PathTracer::Trace(const Camera& camera, const Scene& scene, uint32_t x,
             auto pos = intr.t*ray.dir + ray.org;
             SurfaceProperties prop;
             scene.getSurfaceProperties(prop, intr);
-            color = color + ComputeRadiance(scene, ray.dir, pos, prop.normal, prop.material, 0);
+            color = color + ComputeRadiance(scene, ray.dir, pos, prop, 0);
         } 
     }
 
@@ -57,12 +58,10 @@ Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t
         SoaRayIntersection intr;
         scene.intersect(intr, ray);
 
-        RayIntersection scalarRes[SoaConstants::kLaneCount];
-
         auto pos = intr.t*ray.dir + ray.org;
 
         for (uint32_t lane = 0; lane < SoaConstants::kLaneCount; lane++) {
-            auto& sr = scalarRes[lane];
+            RayIntersection sr;
             sr.t = intr.t.getLane(lane);
             sr.i = intr.i.getLane(lane);
             sr.j = intr.j.getLane(lane);
@@ -74,7 +73,8 @@ Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t
                 SurfaceProperties prop;
                 scene.getSurfaceProperties(prop, sr);
                 
-                color = color + ComputeRadiance(scene, ray.dir.getLane(lane), pos.getLane(lane), prop.normal, prop.material, 0);
+                color = color + ComputeRadiance(scene, ray.dir.getLane(lane), pos.getLane(lane), prop);
+//                color = color + ComputeRadiance(scene, ray.dir.getLane(lane), pos.getLane(lane), prop, 0);
             } 
         }
     }
@@ -82,11 +82,92 @@ Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t
     return color;
 }
 
-Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir, const Vector3f& pos, const Vector3f& normal, const Material* material, uint32_t depth)
+
+Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir, const Vector3f& apos, const SurfaceProperties& aprop)
+{
+    Random& rand = m_rand;
+    auto prop = aprop;
+    auto pos = apos;
+
+    Vector3f result(0.0);
+    Vector3f beta(1.0);
+    uint32_t depth = 0;
+
+    while (depth < 14) {
+        auto material = prop.material;
+        auto normal = prop.normal;
+
+        if (material != nullptr && material->emissive.x != 0) {
+            result = result + beta*material->emissive;
+            break;
+        }
+
+        Vector3f lightRadiance(0.0);
+        Vector3f dir(0.0);
+        if (material->reflectionType == ReflectionType::kDiffuse) {
+            float r2 = rand.generate();
+            float r2sq = std::sqrt(r2);
+            float r1 = rand.generate();
+            Vector3f u = (fabsf(normal.x) > 0.1f) ? Vector3f(0, 1.0f, 0.0f) : Vector3f(1.0f, 0, 0);
+            auto tangent = normalize(cross(normal, u));
+            auto binormal = normalize(cross(tangent, normal));
+
+            float theta = 2.0f*kPi*r1;
+            // Cosine-weighted distribution
+            dir = r2sq*std::cos(theta) * binormal + r2sq*std::sin(theta)*tangent + (1 - r2)*normal;
+
+            beta = beta*material->sampleDiffuse(prop.uv);
+
+            auto light = scene.getDirectionalLight();
+
+            if (light.intensity.isNonZero()) {
+                Ray shadowRay;
+                shadowRay.maxT = 100000.0f;
+                shadowRay.org = pos;
+                shadowRay.dir = light.dir;
+                shadowRay.prepare();
+
+                if (!scene.occluded<bool, Ray>(shadowRay)) {
+                    lightRadiance = light.intensity*std::max(dot(light.dir, normal), 0.0f)/kPi;
+                }
+            }
+        }        
+
+        result = result + beta*lightRadiance;
+        dir = normalize(dir);
+
+        Ray ray;
+        ray.maxT = 10000.0f;
+        ray.org = pos;
+        ray.dir = dir;
+        ray.prepare();
+
+        RayIntersection intr;
+        scene.intersect(intr, ray);
+
+        if (intr.isHit()) {
+            scene.getSurfaceProperties(prop, intr);
+
+            pos = intr.t*ray.dir + ray.org;
+        } else {
+            break;
+        }
+
+        depth++;
+    }
+
+    return result;
+}
+//Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir, const Vector3f& pos, const Vector3f& normal, const Material* material, uint32_t depth)
+Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir, const Vector3f& pos, const SurfaceProperties& prop, uint32_t depth)
 {
     Random& rand = m_rand;
 
+    auto material = prop.material;
+    auto normal = prop.normal;
+
     if (material != nullptr && material->emissive.x != 0) {
+//        return 0;
         return material->emissive;
     }
 
@@ -98,6 +179,10 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
     Vector3f dir;
 
     Vector3f resultColor(0);
+
+    Vector3f lightRadiance(0.0f);
+
+    Vector3f diffuse(0.0f);
 
     float l;
     if (material->reflectionType == ReflectionType::kDiffuse) {
@@ -157,7 +242,7 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
             if (intr.isHit()) {
                 SurfaceProperties prop;
                 scene.getSurfaceProperties(prop, intr);
-                auto radiance = ComputeRadiance(scene, reflDir, ray.dir*intr.t + ray.org, prop.normal, prop.material, depth + 1);
+                auto radiance = ComputeRadiance(scene, reflDir, ray.dir*intr.t + ray.org, prop, depth + 1);
 
                 resultColor = F*radiance*material->diffuse;
             }
@@ -185,11 +270,11 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
     if (intr.isHit()) {
         SurfaceProperties prop;
         scene.getSurfaceProperties(prop, intr);
-        auto radiance = ComputeRadiance(scene, dir, ray.dir*intr.t + ray.org, prop.normal, prop.material, depth + 1);
+        auto radiance = ComputeRadiance(scene, dir, ray.dir*intr.t + ray.org, prop, depth + 1);
         if (m_verbose) {
         }
 
-        resultColor = resultColor + l*radiance*material->diffuse;
+        resultColor = resultColor + (l*radiance + lightRadiance)*diffuse;
     }
 
     return resultColor;

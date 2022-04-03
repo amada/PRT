@@ -106,6 +106,9 @@ public:
     template<typename T, typename U>
     void intersect(T& result, const U& ray) const;
 
+    template<typename T, typename R>
+    T occluded(const R& ray) const;
+
     void build(Mesh&& mesh);
 private:
     static constexpr float kEpsilon = 0.0001f;
@@ -122,6 +125,7 @@ private:
 };
 
 
+#if 0
 struct LinearBvh
 {
 };
@@ -157,5 +161,6 @@ private:
     // TODO remove std::vector
     std::vector<Bvh*> m_bvh;
 };
+#endif
 
 } // namespace prt

@@ -644,7 +644,7 @@ public:
 
     SoaVector3f replaceLane(int32_t lane, const Vector3f& v) const {
         SoaVector3f r;
-#if 1
+
         union {
             floatvec_t v;
             float f[SoaConstants::kLaneCount];
@@ -652,8 +652,34 @@ public:
         u.v = m_x; u.f[lane] = v.x; r.m_x = u.v;
         u.v = m_y; u.f[lane] = v.y; r.m_y = u.v;
         u.v = m_z; u.f[lane] = v.z; r.m_z = u.v;
-#endif
+
         return r;
+    }
+
+    SoaVector3f swapXZ(const SoaMask& swap) const {
+#if defined(R_NEON)
+        auto temp = vbslq_f32(swap.m_mask, m_z, m_x);
+        auto x = vbslq_f32(swap.m_mask, m_x, m_z);
+        auto z = temp;
+#else
+        auto temp = AVX_INT(blendv_ps)(m_z, m_x, mask);
+        auto x = AVX_INT(blendv_ps)(m_x, m_z, mask);
+        auto z = temp;
+#endif
+        return SoaVector3f(x, m_y, z);
+    }
+
+    SoaVector3f swapYZ(const SoaMask& swap) const {
+#if defined(R_NEON)
+        auto temp = vbslq_f32(swap.m_mask, m_z, m_y);
+        auto y = vbslq_f32(swap.m_mask, m_y, m_z);
+        auto z = temp;
+#else
+        auto temp = AVX_INT(blendv_ps)(m_z, m_y, mask);
+        auto y = AVX_INT(blendv_ps)(m_y, m_z, mask);
+        auto z = temp;
+#endif
+        return SoaVector3f(m_x, y, z);
     }
 
     SoaVector3f operator-(const SoaVector3f& v) const {

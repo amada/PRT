@@ -262,7 +262,7 @@ void Bvh::intersect(T& intr, const U& ray) const
                         intr.meshId = m_id;
                     }
                 } else if constexpr (std::is_same<U, SoaRay>::value) {
-                    auto triIntr = intersectTriangle(mask, ray.org, ray.dir, ray.maskX, ray.maskY, p0, p1, p2);
+                    auto triIntr = intersectTriangle(mask, ray.org, ray.dir, ray.swapXZ, ray.swapYZ, p0, p1, p2);
 
                     auto maskHit = triIntr.t.greaterThanOrEqual(kEpsilon) & triIntr.t.lessThan(intr.t);
 

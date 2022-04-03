@@ -91,7 +91,7 @@ TriangleIntersection intersectTriangle(
     return TriangleIntersection(TriangleIntersection::kNoIntersection);
 }
 
-SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3f& org, const SoaVector3f& dir, const SoaMask& maskX, const SoaMask& maskY, const SoaVector3f& v0, const SoaVector3f& v1, const SoaVector3f& v2)
+SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3f& org, const SoaVector3f& dir, const SoaMask& swapXZ, const SoaMask& swapYZ, const SoaVector3f& v0, const SoaVector3f& v1, const SoaVector3f& v2)
 {
     auto o = org;
     auto d = dir;
@@ -101,61 +101,20 @@ SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3
     auto v1r = v1 - o;
     auto v2r = v2 - o;
 
-#if 0
-    // Find an element having the largest magnitude
-    auto abs_d = d.abs();
-
-    auto max_e = abs_d.maximumElement();
-    auto mask_x = max_e.equals(d.getX());
-    auto mask_y = max_e.equals(d.getY()).computeXor(mask_x);
-#endif
-
-// TODO: should not use SIMD intrinsics directly
-#if defined(R_NEON)
-    auto swap = [](floatvec_t& v0, floatvec_t& v1, maskvec_t mask) {
-        auto temp = vbslq_f32(mask, v1, v0);
-        v1 = vbslq_f32(mask, v0, v1);
-        v0 = temp;
-    };
-
-    auto z_as_max = [&swap](SoaVector3f& v, const SoaMask& mask_x, const SoaMask& mask_y) {
-        swap(v.getRefRawX(), v.getRefRawZ(), mask_x.getRawValue());
-        swap(v.getRefRawY(), v.getRefRawZ(), mask_y.getRawValue());
-    };
-
-    if (maskX.anyTrue() || maskY.anyTrue()) {
-        z_as_max(d, maskX, maskY);
-        z_as_max(v0r, maskX, maskY);
-        z_as_max(v1r, maskX, maskY);
-        z_as_max(v2r, maskX, maskY);
+    // Swap X or Y with Z if X or Y is the largest magnitude
+    if (swapXZ.anyTrue()) {
+        d = d.swapXZ(swapXZ);
+        v0r = v0r.swapXZ(swapXZ);
+        v1r = v1r.swapXZ(swapXZ);
+        v2r = v2r.swapXZ(swapXZ);
     }
-#else
-    auto swap = [](floatvec_t& v0, floatvec_t& v1, maskvec_t mask) {
-        auto temp = AVX_INT(blendv_ps)(v0, v1, mask);
-        v1 = AVX_INT(blendv_ps)(v1, v0, mask);
-        v0 = temp;
-    };
 
-    auto z_as_max = [&swap](SoaVector3f& v, const SoaMask& mask_x, const SoaMask& mask_y) {
-        swap(v.getRefRawX(), v.getRefRawZ(), mask_x.getRawValue());
-        swap(v.getRefRawY(), v.getRefRawZ(), mask_y.getRawValue());
-    };
-
-#if 1
-    if (maskX.anyTrue() || maskY.anyTrue()) {
-        z_as_max(d, maskX, maskY);
-        z_as_max(v0r, maskX, maskY);
-        z_as_max(v1r, maskX, maskY);
-        z_as_max(v2r, maskX, maskY);
-    }
-#else
-    z_as_max(d, maskX, mask_y);
-    z_as_max(v0r, mask_x, mask_y);
-    z_as_max(v1r, mask_x, mask_y);
-    z_as_max(v2r, mask_x, mask_y);
-#endif
-
-#endif
+    if (swapXZ.anyTrue()) {
+        d = d.swapYZ(swapXZ);
+        v0r = v0r.swapYZ(swapXZ);
+        v1r = v1r.swapYZ(swapXZ);
+        v2r = v2r.swapYZ(swapXZ);
+    }  
 
     auto v0z = v0r.getZ();
     auto v1z = v1r.getZ();

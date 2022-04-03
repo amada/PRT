@@ -57,8 +57,8 @@ public:
     SoaVector3f invDir;
     SoaFloat maxT;
 
-    SoaMask maskX;
-    SoaMask maskY;
+    SoaMask swapXZ;
+    SoaMask swapYZ;
 
 //    bool m_verbose = false;
 
@@ -74,8 +74,8 @@ public:
         auto mask_x = max_e.equals(abs_d.getX()); // Mask if max element is x
         auto mask_y = max_e.equals(abs_d.getY()).computeAnd(mask_x.computeNot()); // Mask if max element is y
 
-        maskX = mask_x;
-        maskY = mask_y;
+        swapXZ = mask_x;
+        swapYZ = mask_y;
     }
 
 

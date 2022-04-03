@@ -71,8 +71,8 @@ public:
         auto abs_d = d.abs();
 
         auto max_e = abs_d.maximumElement();
-        auto mask_x = max_e.equals(d.getX());
-        auto mask_y = max_e.equals(d.getY()).computeXor(mask_x);
+        auto mask_x = max_e.equals(abs_d.getX()); // Mask if max element is x
+        auto mask_y = max_e.equals(abs_d.getY()).computeAnd(mask_x.computeNot()); // Mask if max element is y
 
         maskX = mask_x;
         maskY = mask_y;

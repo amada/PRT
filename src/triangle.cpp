@@ -109,11 +109,11 @@ SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3
         v2r = v2r.swapXZ(swapXZ);
     }
 
-    if (swapXZ.anyTrue()) {
-        d = d.swapYZ(swapXZ);
-        v0r = v0r.swapYZ(swapXZ);
-        v1r = v1r.swapYZ(swapXZ);
-        v2r = v2r.swapYZ(swapXZ);
+    if (swapYZ.anyTrue()) {
+        d = d.swapYZ(swapYZ);
+        v0r = v0r.swapYZ(swapYZ);
+        v1r = v1r.swapYZ(swapYZ);
+        v2r = v2r.swapYZ(swapYZ);
     }  
 
     auto v0z = v0r.getZ();

@@ -658,8 +658,8 @@ public:
 
     SoaVector3f swapXZ(const SoaMask& swap) const {
 #if defined(R_NEON)
-        auto temp = vbslq_f32(swap.m_mask, m_z, m_x);
-        auto x = vbslq_f32(swap.m_mask, m_x, m_z);
+        auto temp = vbslq_f32(swap.m_mask, m_x, m_z);
+        auto x = vbslq_f32(swap.m_mask, m_z, m_x);
         auto z = temp;
 #else
         auto temp = AVX_INT(blendv_ps)(m_z, m_x, mask);
@@ -671,8 +671,8 @@ public:
 
     SoaVector3f swapYZ(const SoaMask& swap) const {
 #if defined(R_NEON)
-        auto temp = vbslq_f32(swap.m_mask, m_z, m_y);
-        auto y = vbslq_f32(swap.m_mask, m_y, m_z);
+        auto temp = vbslq_f32(swap.m_mask, m_y, m_z);
+        auto y = vbslq_f32(swap.m_mask, m_z, m_y);
         auto z = temp;
 #else
         auto temp = AVX_INT(blendv_ps)(m_z, m_y, mask);

@@ -49,7 +49,7 @@ void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const M
 
     const auto extent = bbox.upper - bbox.lower;
     const uint32_t dim = (bbox.upper - bbox.lower).GetLongestElement();
-    const float splitExtent = extent.v[dim];
+    const float splitExtent = extent.v[dim] == 0.0 ? 0.0001 : extent.v[dim];
     const float lowerPos = bbox.lower.v[dim];
 
     const uint32_t kBucketCount = 12;

@@ -153,6 +153,16 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
             break;
         }
 
+        // Russian roulette
+        if (depth > 4) {
+            float q = std::max(0.05f, 1.0f - length(beta));
+            if (rand.generate() < q) {
+                break;
+            }
+
+            beta = beta/(1.0f - q);
+        }
+
         depth++;
     }
 

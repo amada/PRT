@@ -47,7 +47,13 @@ struct Texture
 //    template<typename T>
     bool isValid() const { return texels != nullptr; }
     Vector4f sample(const Vector2f& uv) const;
+    bool testAlpha(const Vector2f& uv) const;
+    SoaMask testAlpha(const SoaMask& mask, const SoaVector2f& uv) const;
+
+    bool isAlphaTestRequired() const;
 private:
+    const int32_t kAlphaThreashold = 127;
+
     void load(const char* path);
 };
 
@@ -65,9 +71,18 @@ struct Material
     Texture emissiveMap;
     Texture normalMap;
     ReflectionType reflectionType;
+    bool alphaTest;
 
     // TODO: support for alpha channel?
     Vector3f sampleDiffuse(const Vector2f& uv) const;
+    bool testAlpha(const Vector2f& uv) const {
+        return diffuseMap.testAlpha(uv);
+    }
+
+    SoaMask testAlpha(const SoaMask& mask, const SoaVector2f& uv) const {
+        return diffuseMap.testAlpha(mask, uv);
+    }
+
 private:
     void load(const tinyobj::material_t& m, const std::string& dirPath);
 };

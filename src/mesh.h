@@ -9,6 +9,7 @@ namespace prt
 // struct?
 class Mesh
 {
+    friend class Scene;
 public:
     static const uint32_t kVertexCountPerPrim = 3;
 
@@ -24,6 +25,12 @@ public:
     // Add texcoordCount
     void create(uint32_t primCount, uint32_t vertexCount, uint32_t materialCount, bool hasVertexNormal);
 
+    template<typename T, typename R>
+    void intersect(T& intr, const SoaMask& mask, const R& ray, uint32_t primIdx) const;
+
+    template<typename R>
+    bool occluded(const R& ray, uint32_t primIdx) const;
+
     void calculateVertexNormals();
 
     uint32_t getPrimCount() const { return m_indexCount/kVertexCountPerPrim; }
@@ -38,6 +45,8 @@ public:
     uint32_t getPrimToMaterial(uint32_t index) const { return m_primMaterial[index]; }
     const Material& getMaterial(uint32_t index) const { return m_materials[index]; }
 
+    uint32_t getMaterialCount() const { return m_materialCount; }
+
     bool hasVertexNormal() const { return m_hasVertexNormal; }
 
     // For initialization
@@ -48,6 +57,7 @@ public:
     Material* getMaterialBuffer() { return m_materials; }
 
 private:
+    static constexpr float kEpsilon = 0.0001f;
 
     uint32_t* m_indices = nullptr;
     uint32_t* m_texcoordIndices = nullptr;
@@ -58,9 +68,11 @@ private:
     Material* m_materials = nullptr;
     uint32_t m_indexCount = 0;
     uint32_t m_vertexCount = 0;
+    uint32_t m_materialCount = 0;
     uint32_t m_texcoordsCount = 0;
     
     bool m_hasVertexNormal = false;
+    uint32_t m_id = 0; // TODO mesh id
 };
 
 } // namespace prt

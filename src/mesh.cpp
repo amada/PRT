@@ -8,6 +8,8 @@
 #include "log.h"
 #include "vecmath.h"
 #include "triangle.h"
+#include "bvh.h" // TODO temp for RayIntersection
+#include "ray.h"
 
 #include "mesh.h"
 
@@ -28,6 +30,7 @@ Mesh::Mesh(Mesh&& m)
     m_materials = m.m_materials;
     m_indexCount = m.m_indexCount;
     m_vertexCount = m.m_vertexCount;
+    m_materialCount = m.m_materialCount;
     m_hasVertexNormal = m.m_hasVertexNormal;
 
     m.m_indices = nullptr;
@@ -37,6 +40,7 @@ Mesh::Mesh(Mesh&& m)
     m.m_materials = nullptr;
     m.m_indexCount = 0;
     m.m_vertexCount = 0;
+    m.m_materialCount = 0;
 }
 
 Mesh& Mesh::operator=(Mesh&& m)
@@ -50,6 +54,7 @@ Mesh& Mesh::operator=(Mesh&& m)
     m_materials = m.m_materials;
     m_indexCount = m.m_indexCount;
     m_vertexCount = m.m_vertexCount;
+    m_materialCount = m.m_materialCount;
     m_texcoordsCount = m.m_texcoordsCount;
     m_hasVertexNormal = m.m_hasVertexNormal;
 
@@ -60,6 +65,8 @@ Mesh& Mesh::operator=(Mesh&& m)
     m.m_materials = nullptr;
     m.m_indexCount = 0;
     m.m_vertexCount = 0;
+    m.m_texcoordsCount = 0;
+    m.m_materialCount = 0;
 
     return m;
 }
@@ -88,6 +95,7 @@ void Mesh::create(uint32_t primCount, uint32_t vertexCount, uint32_t materialCou
 
     m_indexCount = indexCount;
     m_vertexCount = vertexCount;
+    m_materialCount = materialCount;
     m_hasVertexNormal = hasVertexNormal;
 }
 
@@ -103,7 +111,9 @@ void Mesh::calculateVertexNormals()
         m_normals[i].set(0.0f, 0.0f, 0.0f);
     }
 
-    for (uint32_t i = 0; i < m_indexCount/Mesh::kVertexCountPerPrim; i++) {
+    // TODO: The order of processing matters because this loop doens't allow accumulated normals to be zero even temporarily
+    for (int32_t i = m_indexCount/Mesh::kVertexCountPerPrim - 1; i >= 0; i--) {
+//    for (uint32_t i = 0; i < m_indexCount/Mesh::kVertexCountPerPrim; i++) {
         uint32_t indexBase = i*Mesh::kVertexCountPerPrim;
         uint32_t v[Mesh::kVertexCountPerPrim];
         Vector3f p[Mesh::kVertexCountPerPrim];
@@ -113,9 +123,16 @@ void Mesh::calculateVertexNormals()
         }
 
         auto normal = normalize(cross(p[1] - p[0], p[2] - p[0]));
+        if (std::isnan(normal.x) || std::isnan(normal.y)|| std::isnan(normal.z)) {
+            normal.set(0.0f, 0.0f, 0.0f);
+        }
 
         for (uint32_t j = 0; j < Mesh::kVertexCountPerPrim; j++) {
-            normals[v[j]] = normals[v[j]] + normal;
+//            normals[v[j]] = normals[v[j]] + normal;
+            auto n = normals[v[j]] + normal;
+            if (length(n) > 0.0f) {
+                normals[v[j]] = n;
+            }
         }
     }
 
@@ -170,7 +187,7 @@ void Mesh::loadObj(const char* path, const Material& mat)
     memset(getPrimMateialBuffer(), 0, primCount*sizeof(uint32_t));
     memcpy(getMaterialBuffer(), &mat, sizeof(Material));
 
-    logPrintf(LogLevel::kVerbose, "finished loading '%s'\n", path);
+    logPrintf(LogLevel::kVerbose, "Finished loading '%s'\n", path);
 }
 
 void Mesh::loadObj(const char* path)
@@ -197,6 +214,17 @@ void Mesh::loadObj(const char* path)
     std::vector<uint32_t> indices;
     std::vector<uint32_t> texcoordIndices;
 
+    uint32_t vertexCount = 0;
+    for (auto s: objReader.GetShapes()) {
+        vertexCount = s.mesh.indices.size();
+    }
+
+    auto& attr = objReader.GetAttrib();
+
+    vertexCount = attr.vertices.size()/3;
+    std::vector<Vector2f> tex; tex.resize(vertexCount);
+//    std::vector<Vector3f> norm; norm.resize(vertexCount);
+
     for (auto s: objReader.GetShapes()) {
         // TODO: not taking care of normal and texture coords
         auto& srcIndices = s.mesh.indices;
@@ -204,13 +232,21 @@ void Mesh::loadObj(const char* path)
         // TODO can be insert
         for (auto i: srcIndices) {
             indices.push_back(i.vertex_index);
-            texcoordIndices.push_back(i.texcoord_index);
+//            texcoordIndices.push_back(i.texcoord_index);
+            texcoordIndices.push_back(i.vertex_index);
+            uint32_t b;
+            b = 2*i.texcoord_index;
+            tex[i.vertex_index] = Vector2f(attr.texcoords[b], attr.texcoords[b + 1]);
+/*
+            b = 3*i.normal_index;
+            norm[i.vertex_index] 
+                = Vector3f(attr.normals[b], attr.normals[b + 1], attr.normals[b + 2]);
+                */
         }
 
         primMat.insert(primMat.end(), s.mesh.material_ids.begin(), s.mesh.material_ids.end());
     }
 
-    auto& attr = objReader.GetAttrib();
     auto& srcVertices = attr.vertices;
     auto& srcTexcoords = attr.texcoords;
 
@@ -225,13 +261,142 @@ void Mesh::loadObj(const char* path)
 
     m_texcoordsCount = srcTexcoords.size()/kFloatCountPerTexcoord;
     memcpy(m_texcoordIndices, texcoordIndices.data(), texcoordIndices.size()*sizeof(uint32_t));
-    memcpy(m_texcoords, srcTexcoords.data(), srcTexcoords.size()*sizeof(float));
+//    memcpy(m_texcoords, srcTexcoords.data(), srcTexcoords.size()*sizeof(Vector2f));
+    memcpy(m_texcoords, tex.data(), tex.size()*sizeof(Vector2f));
 
     memcpy(getPrimMateialBuffer(), primMat.data(), primCount*sizeof(uint32_t));
     memcpy(getMaterialBuffer(), materials.data(), materials.size()*sizeof(Material));
 
-    logPrintf(LogLevel::kVerbose, "finished loading '%s'\n", path);
+    logPrintf(LogLevel::kVerbose, "Finished loading '%s' prim=%u, vtx=%u, tex=%u\n", path, primCount, srcVertices.size()/3, srcTexcoords.size()/2);
 }
+
+template<typename T, typename R>
+void Mesh::intersect(T& intr, const SoaMask& mask, const R& ray, uint32_t primIndex) const
+{
+    uint32_t indexBase = primIndex*Mesh::kVertexCountPerPrim;
+    // TODO skip two-level indircection
+    uint32_t v0 = getIndex(indexBase + 0);
+    uint32_t v1 = getIndex(indexBase + 1);
+    uint32_t v2 = getIndex(indexBase + 2);
+    const Vector3f& p0 = getPosition(v0);
+    const Vector3f& p1 = getPosition(v1);
+    const Vector3f& p2 = getPosition(v2);
+
+    static_assert(kEpsilon > TriangleIntersection::kNoIntersection, "kEpsilon must be larger than TriangleIntersectionT::kNoIntersection to reject no intersection");
+
+    if constexpr (std::is_same<R, Ray>::value) {
+        auto triIntr = intersectTriangle(ray.org, ray.dir, p0, p1, p2);
+
+        if (triIntr.t >= kEpsilon && triIntr.t < intr.t) {
+            auto& mat = getMaterial(getPrimToMaterial(primIndex));
+
+            bool passAlphaTest = true;
+            if (mat.alphaTest) {
+
+// access to texcoord index can be removed??
+                v0 = getTexcoordIndex(indexBase + 0);
+                v1 = getTexcoordIndex(indexBase + 1);
+                v2 = getTexcoordIndex(indexBase + 2);
+
+                auto& t0 = getTexcoord(v0);
+                auto& t1 = getTexcoord(v1);
+                auto& t2 = getTexcoord(v2);
+                auto uv = triIntr.i*t0 + triIntr.j*t1 + triIntr.k*t2;
+
+                passAlphaTest = mat.testAlpha(uv);
+            }
+
+            if (passAlphaTest) {
+                intr.t = triIntr.t;
+                intr.i = triIntr.i;
+                intr.j = triIntr.j;
+                intr.k = triIntr.k;
+                intr.primId = primIndex;
+                intr.meshId = m_id;
+            }   
+        }
+    } else if constexpr (std::is_same<R, SoaRay>::value) {
+        auto triIntr = intersectTriangle(mask, ray.org, ray.dir, ray.swapXZ, ray.swapYZ, p0, p1, p2);
+
+        auto maskHit = triIntr.t.greaterThanOrEqual(kEpsilon) & triIntr.t.lessThan(intr.t);
+
+        maskHit = maskHit & mask;
+
+        if (maskHit.anyTrue()) {
+            auto& mat = getMaterial(getPrimToMaterial(primIndex));
+
+            if (mat.alphaTest) {
+
+// access to texcoord index can be removed??
+                v0 = getTexcoordIndex(indexBase + 0);
+                v1 = getTexcoordIndex(indexBase + 1);
+                v2 = getTexcoordIndex(indexBase + 2);
+
+                auto& t0 = getTexcoord(v0);
+                auto& t1 = getTexcoord(v1);
+                auto& t2 = getTexcoord(v2);
+                auto uv = triIntr.i*t0 + triIntr.j*t1 + triIntr.k*t2;
+
+                maskHit = mat.testAlpha(maskHit, uv);
+            }
+
+            intr.t = select(intr.t, triIntr.t, maskHit);
+            intr.i = select(intr.i, triIntr.i, maskHit);
+            intr.j = select(intr.j, triIntr.j, maskHit);
+            intr.k = select(intr.k, triIntr.k, maskHit);
+            intr.primId = select(intr.primId, primIndex, maskHit);
+            intr.meshId = select(intr.meshId, m_id, maskHit); // 
+        }    
+    }
+}
+
+template void Mesh::intersect<RayIntersection, Ray>(RayIntersection& intr, const SoaMask& mask, const Ray& ray, uint32_t primIndex) const;
+template void Mesh::intersect<SoaRayIntersection, SoaRay>(SoaRayIntersection& intr, const SoaMask& mask, const SoaRay& ray, uint32_t primIndex) const;
+
+template<typename R>
+bool Mesh::occluded(const R& ray, uint32_t primIndex) const
+{
+    uint32_t indexBase = primIndex*Mesh::kVertexCountPerPrim;
+    // TODO skip two-level indircection
+    uint32_t v0 = getIndex(indexBase + 0);
+    uint32_t v1 = getIndex(indexBase + 1);
+    uint32_t v2 = getIndex(indexBase + 2);
+    const Vector3f &p0 = getPosition(v0);
+    const Vector3f &p1 = getPosition(v1);
+    const Vector3f &p2 = getPosition(v2);
+
+    static_assert(kEpsilon > TriangleIntersection::kNoIntersection, "kEpsilon must be larger than TriangleIntersectionT::kNoIntersection to reject no intersection");
+
+    if constexpr (std::is_same<R, Ray>::value) {
+        // TODO use intersectTriangle dedicated for occluded
+        auto triIntr = intersectTriangle(ray.org, ray.dir, p0, p1, p2);
+
+        auto& mat = getMaterial(getPrimToMaterial(primIndex));
+
+        if (triIntr.t >= kEpsilon && triIntr.t < ray.maxT) {
+            if (mat.alphaTest) {
+                v0 = getTexcoordIndex(indexBase + 0);
+                v1 = getTexcoordIndex(indexBase + 1);
+                v2 = getTexcoordIndex(indexBase + 2);
+
+                const auto& t0 = getTexcoord(v0);
+                const auto& t1 = getTexcoord(v1);
+                const auto& t2 = getTexcoord(v2);
+                auto uv = triIntr.i*t0 + triIntr.j*t1 + triIntr.k*t2;
+
+                if (mat.testAlpha(uv)) {
+                    return true;
+                }
+            } else {
+                return true;
+            }    
+        }
+    }
+
+    return false;
+}
+
+template bool Mesh::occluded<Ray>(const Ray& ray, uint32_t primIndex) const;
 
 
 }

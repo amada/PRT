@@ -239,44 +239,7 @@ void Bvh::intersect(T& intr, const U& ray) const
 
             for (int32_t i = 0; i < node->primCount; i++) {
                 uint32_t primIndex = m_primRemapping[node->primOrSecondNodeIndex + i];
-                uint32_t indexBase = primIndex*Mesh::kVertexCountPerPrim;
-                // TODO skip two-level indircection
-                uint32_t v0 = m.getIndex(indexBase + 0);
-                uint32_t v1 = m.getIndex(indexBase + 1);
-                uint32_t v2 = m.getIndex(indexBase + 2);
-                const Vector3f &p0 = m.getPosition(v0);
-                const Vector3f &p1 = m.getPosition(v1);
-                const Vector3f &p2 = m.getPosition(v2);
-
-                static_assert(kEpsilon > TriangleIntersection::kNoIntersection, "kEpsilon must be larger than TriangleIntersectionT::kNoIntersection to reject no intersection");
-
-                if constexpr (std::is_same<U, Ray>::value) {
-                    auto triIntr = intersectTriangle(ray.org, ray.dir, p0, p1, p2);
-
-                    if (triIntr.t >= kEpsilon && triIntr.t < intr.t) {
-                        intr.t = triIntr.t;
-                        intr.i = triIntr.i;
-                        intr.j = triIntr.j;
-                        intr.k = triIntr.k;
-                        intr.primId = primIndex;
-                        intr.meshId = m_id;
-                    }
-                } else if constexpr (std::is_same<U, SoaRay>::value) {
-                    auto triIntr = intersectTriangle(mask, ray.org, ray.dir, ray.swapXZ, ray.swapYZ, p0, p1, p2);
-
-                    auto maskHit = triIntr.t.greaterThanOrEqual(kEpsilon) & triIntr.t.lessThan(intr.t);
-
-                    maskHit = maskHit & mask;
-
-                    if (maskHit.anyTrue()) {
-                        intr.t = select(intr.t, triIntr.t, maskHit);
-                        intr.i = select(intr.i, triIntr.i, maskHit);
-                        intr.j = select(intr.j, triIntr.j, maskHit);
-                        intr.k = select(intr.k, triIntr.k, maskHit);
-                        intr.primId = select(intr.primId, primIndex, maskHit);
-                        intr.meshId = select(intr.meshId, m_id, maskHit);
-                    }
-                }
+                m.intersect(intr, mask, ray, primIndex);
             }
         }
 
@@ -340,43 +303,9 @@ T Bvh::occluded(const R& ray) const
 
             for (int32_t i = 0; i < node->primCount; i++) {
                 uint32_t primIndex = m_primRemapping[node->primOrSecondNodeIndex + i];
-                uint32_t indexBase = primIndex*Mesh::kVertexCountPerPrim;
-                // TODO skip two-level indircection
-                uint32_t v0 = m.getIndex(indexBase + 0);
-                uint32_t v1 = m.getIndex(indexBase + 1);
-                uint32_t v2 = m.getIndex(indexBase + 2);
-                const Vector3f &p0 = m.getPosition(v0);
-                const Vector3f &p1 = m.getPosition(v1);
-                const Vector3f &p2 = m.getPosition(v2);
 
-                static_assert(kEpsilon > TriangleIntersection::kNoIntersection, "kEpsilon must be larger than TriangleIntersectionT::kNoIntersection to reject no intersection");
-
-                if constexpr (std::is_same<R, Ray>::value) {
-                    // TODO use intersectTriangle dedicated for occluded
-                    auto triIntr = intersectTriangle(ray.org, ray.dir, p0, p1, p2);
-
-                    if (triIntr.t >= kEpsilon && triIntr.t < ray.maxT) {
-                        return true;
-                    }
-                } 
-                #if 0 // SoaRay isn't supported yet
-                else if constexpr (std::is_same<U, SoaRay>::value) {
-                    auto triIntr = intersectTriangle(mask, ray.org, ray.dir, ray.maskX, ray.maskY, p0, p1, p2);
-
-                    auto maskHit = triIntr.t.greaterThanOrEqual(kEpsilon) & triIntr.t.lessThan(ray.maxT);
-
-                    maskHit = maskHit & mask;
-
-                    if (maskHit.anyTrue()) {
-                        intr.t = select(intr.t, triIntr.t, maskHit);
-                        intr.i = select(intr.i, triIntr.i, maskHit);
-                        intr.j = select(intr.j, triIntr.j, maskHit);
-                        intr.k = select(intr.k, triIntr.k, maskHit);
-                        intr.primId = select(intr.primId, primIndex, maskHit);
-                        intr.meshId = select(intr.meshId, m_id, maskHit);
-                    }
-                }
-                #endif
+                if (m.occluded(ray, primIndex))
+                    return true;
             }
         }
 

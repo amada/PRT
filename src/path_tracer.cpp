@@ -41,7 +41,7 @@ Vector3f PathTracer::Trace(const Camera& camera, const Scene& scene, uint32_t x,
             auto pos = intr.t*ray.dir + ray.org;
             SurfaceProperties prop;
             scene.getSurfaceProperties(prop, intr);
-            color = color + ComputeRadiance(scene, ray.dir, pos, prop, 0);
+            color = color + ComputeRadiance(scene, ray.dir, pos, prop);
         } 
     }
 

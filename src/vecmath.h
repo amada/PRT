@@ -250,6 +250,21 @@ public:
     SoaMask(maskvec_t mask) : m_mask(mask) {
     }
 
+    SoaMask(uint32_t mask) {
+#define SET_MASK(i) ((i) ? 0xffffffffu : 0u)
+#if defined(R_NEON)
+        m_mask = vdupq_n_u32(SET_MASK(mask & 0x1));
+        m_mask = vsetq_lane_u32(SET_MASK(mask & 0x2), m_mask, 1);
+        m_mask = vsetq_lane_u32(SET_MASK(mask & 0x4), m_mask, 2);
+        m_mask = vsetq_lane_u32(SET_MASK(mask & 0x8), m_mask, 3);
+#elif defined(R_AVX4L)
+        m_mask = _mm_set_ps(SET_MASK(mask & 0x8), SET_MASK(mask & 0x4), SET_MASK(mask & 0x2), SET_MASK(mask & 0x1));
+#elif defined(R_AVX8L)
+        m_mask = _mm256_set_ps(SET_MASK(mask & 0x80), SET_MASK(mask & 0x40), SET_MASK(mask & 0x20), SET_MASK(mask & 0x10), 
+            SET_MASK(mask & 0x8), SET_MASK(mask & 0x4), SET_MASK(mask & 0x2), SET_MASK(mask & 0x1));
+#endif
+    }
+
     static SoaMask initAllTrue() {
         SoaMask r;
 #if defined(R_NEON)
@@ -366,6 +381,8 @@ private:
 };
 
 
+class SoaFloat;
+
 class SoaInt
 {
 public:
@@ -381,6 +398,8 @@ public:
     SoaInt(intvec_t i) {
         m_i = i;
     }
+
+    SoaInt(const SoaFloat& f);
 
     intvec_t getRawValue() const {
         return m_i;
@@ -403,12 +422,30 @@ public:
 #endif
     }    
 
+    SoaInt operator+(const SoaInt& i) const {
+#if defined(R_NEON)
+        return vaddq_s32(m_i, i.m_i);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+        return AVX_INT(add_epi32)(m_i, i.m_i);
+#endif
+    }
+
+    SoaInt operator*(const SoaInt& i) const {
+#if defined(R_NEON)
+        return vmulq_s32(m_i, i.m_i);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+        return AVX_INT(mullo_epi32)(m_i, i.m_i);
+#endif
+    }    
+
 private:
     intvec_t m_i;
 };
 
 class SoaFloat
 {
+    friend class SoaInt;
+    friend class SoaVector2f;
     friend class SoaVector3f;
 
 public:
@@ -455,6 +492,15 @@ public:
         return AVX_INT(min_ps)(m_f, f.m_f);
 #endif
     }
+
+    SoaFloat floor() const {
+#if defined(R_NEON)
+        return vrndmq_f32(m_f);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+        return AVX_INT(floor_ps)(m_f);
+#endif
+    }
+
 
     SoaMask lessThan(const SoaFloat& f) {
 #if defined(R_NEON)
@@ -512,6 +558,10 @@ public:
 #endif
     }
 
+    SoaFloat operator*(float f) const {
+        return (*this)*SoaFloat(f);
+    }
+
     SoaFloat operator+(const SoaFloat& f) const {
 #if defined(R_NEON)
         return vaddq_f32(m_f, f.m_f);
@@ -548,6 +598,75 @@ private:
     floatvec_t m_f;
 };
 
+class SoaVector2f
+{
+public:
+    SoaVector2f() = default;
+
+    SoaVector2f(const Vector2f& v) {
+#if defined(R_NEON)
+        m_x = vdupq_n_f32(v.x);
+        m_y = vdupq_n_f32(v.y);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+        m_x = AVX_INT(set1_ps)(v.x);
+        m_y = AVX_INT(set1_ps)(v.y);
+#endif
+    }
+
+    SoaVector2f(const SoaFloat& x, const SoaFloat& y, const SoaFloat& z) {
+        m_x = x.m_f;
+        m_y = y.m_f;
+    }
+
+    SoaFloat getX() const {
+        return m_x;
+    }
+
+    SoaFloat getY() const {
+        return m_y;
+    }    
+
+    Vector2f getLane(int32_t lane) const {
+        Vector2f r;
+#if defined(R_NEON)
+        r.x = _neon_getLane<floatvec_t, float>(m_x, lane);
+        r.y = _neon_getLane<floatvec_t, float>(m_y, lane);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+        auto index = AVX_INT(set1_epi32)(lane);
+        r.x = AVX_INT(cvtss_f32)(AVX_INT(permutevar_ps)(m_x, index));
+        r.y = AVX_INT(cvtss_f32)(AVX_INT(permutevar_ps)(m_y, index));
+#endif
+        return r;
+    }
+
+    SoaVector2f operator*(const SoaFloat& f) const {
+        SoaVector2f r;
+#if defined(R_NEON)
+        r.m_x = vmulq_f32(m_x, f.m_f);
+        r.m_y = vmulq_f32(m_y, f.m_f);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+        r.m_x = AVX_INT(mul_ps)(m_x, f.m_f);
+        r.m_y = AVX_INT(mul_ps)(m_y, f.m_f);
+#endif
+        return r;
+    }
+
+    SoaVector2f operator+(const SoaVector2f& v) const {
+        SoaVector2f r;
+#if defined(R_NEON)
+        r.m_x = vaddq_f32(m_x, v.m_x);
+        r.m_y = vaddq_f32(m_y, v.m_y);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+        r.m_x = AVX_INT(add_ps)(m_x, v.m_x);
+        r.m_y = AVX_INT(add_ps)(m_y, v.m_y);
+#endif
+        return r;
+    }    
+
+private:
+    floatvec_t m_x;
+    floatvec_t m_y;    
+};
 
 class SoaVector3f
 {
@@ -886,6 +1005,17 @@ struct BBox
 
 // Functions
 
+inline SoaInt::SoaInt(const SoaFloat& f) 
+{
+#if defined(R_NEON)
+    m_i = vcvtq_s32_f32(f.m_f);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    m_i = AVX_INT(cvtps_epi32)(f.m_f);
+#endif
+}
+
+
+
 inline Vector3f min(const Vector3f& v0, const Vector3f& v1)
 {
     return Vector3f(std::fmin(v0.x, v1.x), std::fmin(v0.y, v1.y), std::fmin(v0.z, v1.z));
@@ -935,7 +1065,21 @@ inline Vector3f normalize(const Vector3f& v)
     return invlen*v;
 }
 
+inline SoaInt operator+(int32_t i0, const SoaInt& i1) {
+    return SoaInt(i0) + i1;
+}
 
+inline SoaInt operator*(int32_t i0, const SoaInt& i1) {
+    return SoaInt(i0)*i1;
+}
+
+inline SoaFloat operator-(float f0, const SoaFloat& f1) {
+    return SoaFloat(f0) - f1;
+}
+
+inline SoaVector2f operator*(const SoaFloat& f, const Vector2f& v) {
+    return SoaVector2f(v)*f;
+}
 
 inline SoaVector3f operator*(const SoaFloat& f, const Vector3f& v) {
     return f*SoaVector3f(v);

@@ -39,7 +39,7 @@ void selectS(SoaVar<T>& dst, const SoaVar<T>& src, const SoaMask& mask)
 }
 #endif
 
-
+// can be moved to ray.h????
 template<typename T, typename U>
 struct RayIntersectionT
 {
@@ -111,8 +111,6 @@ public:
 
     void build(Mesh&& mesh);
 private:
-    static constexpr float kEpsilon = 0.0001f;
-
     void buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode* node);
 
     Mesh m_mesh; // TODO: should have multiple meshes
@@ -121,7 +119,6 @@ private:
      // TODO: can remove if this just maps to primitive/index, but should include mesh index
     uint32_t* m_primRemapping;
     LinearBvhNode* m_nodes;
-    uint32_t m_id; // TODO mesh id
 };
 
 

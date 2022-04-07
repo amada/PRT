@@ -35,7 +35,7 @@ public:
     void getSurfaceProperties(T& properties, const U& intr) const;
 
     void add(Bvh* bvh) { 
-        bvh->m_id = m_bvh.size();
+        bvh->m_mesh.m_id = m_bvh.size();
         m_bvh.push_back(bvh); 
     } // shared ptr?
 

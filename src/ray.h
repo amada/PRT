@@ -60,6 +60,8 @@ public:
     SoaMask swapXZ;
     SoaMask swapYZ;
 
+    Vector3f avgDir;
+
 //    bool m_verbose = false;
 
 // TODO: should calculate after org, dir are set
@@ -76,9 +78,13 @@ public:
 
         swapXZ = mask_x;
         swapYZ = mask_y;
+
+        Vector3f avg(0.0f);
+        for (uint32_t i = 0; i < SoaConstants::kLaneCount; i++) {
+            avg = avg + d.getLane(i);
+        }
+        avgDir = avg/SoaConstants::kLaneCount;
     }
-
-
 };
 
 } // namespace prt

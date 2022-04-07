@@ -52,7 +52,7 @@ void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const M
     const float splitExtent = extent.v[dim] == 0.0 ? 0.0001 : extent.v[dim];
     const float lowerPos = bbox.lower.v[dim];
 
-    const uint32_t kBucketCount = 12;
+    const uint32_t kBucketCount = 14;
 
     struct Bucket {
         uint32_t count = 0;
@@ -132,6 +132,8 @@ void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const M
     } else {
     }
 
+    m_splitAxis = dim;
+
     nodes[0]->build(context, primRemapping, mesh, start, mid);
     nodes[1]->build(context, primRemapping, mesh, mid + 1, end);
 
@@ -172,6 +174,7 @@ void Bvh::buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode
     (*index)++;
 
     l.bbox = node->m_bbox;
+    l.splitAxis = node->m_splitAxis;
 
     if (node->m_primIndex == BvhBuildNode::kInteriorNode) {
         l.primCount = LinearBvhNode::kInternalNode;
@@ -180,24 +183,30 @@ void Bvh::buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode
         l.primOrSecondNodeIndex = *index;
         buildLinearBvhNodes(nodes, index, node->m_children[1]);
     } else {
-        l.primCount = node->m_primCount;
         l.primOrSecondNodeIndex = node->m_primIndex;
+        l.primCount = node->m_primCount;
     }
 
     delete node;
 }
 
-template<typename T, typename U>
-void Bvh::intersect(T& intr, const U& ray) const
+template<typename T, typename R>
+void Bvh::intersect(T& intr, const R& ray) const
 {
     const uint32_t kStackSize = 64;
     int32_t current = 0;
     LinearBvhNode* nodes[kStackSize];
     nodes[current] = &m_nodes[0];
 
+    bool reverseStackOrder[3];
     SoaMask masks[kStackSize];
-    if constexpr (std::is_same<U, SoaRay>::value) {
+    if constexpr (std::is_same<R, Ray>::value) {
+        for (uint32_t i = 0; i < 3; i++)
+            reverseStackOrder[i] = ray.dir.v[i] < 0.0f;
+    } else if constexpr (std::is_same<R, SoaRay>::value) {
         masks[current] = SoaMask::initAllTrue();
+        for (uint32_t i = 0; i < 3; i++)
+            reverseStackOrder[i] = ray.avgDir.v[i] < 0.0f;
     }
 
     do {
@@ -207,9 +216,9 @@ void Bvh::intersect(T& intr, const U& ray) const
         auto t = node->bbox.intersect(ray.org, ray.dir, ray.invDir);
         bool hit;
 
-        if constexpr (std::is_same<U, Ray>::value) {
+        if constexpr (std::is_same<R, Ray>::value) {
             hit = (t != BBox::kNoHit && t < intr.t);
-        } else if constexpr (std::is_same<U, SoaRay>::value) {
+        } else if constexpr (std::is_same<R, SoaRay>::value) {
             auto maskBbox = t.notEquals(BBox::kNoHit).computeAnd(t.lessThan(intr.t));
 
             mask = maskBbox & mask;
@@ -220,10 +229,15 @@ void Bvh::intersect(T& intr, const U& ray) const
             // Do nothing
         } else if (node->primCount == LinearBvhNode::kInternalNode) {
             if (hit) {
-                // TODO: order
-                nodes[current + 0] = node + 1;
-                nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
-                if constexpr (std::is_same<U, SoaRay>::value) {
+                // Visit closer child first
+                if (reverseStackOrder[node->splitAxis]) {
+                    nodes[current + 0] = node + 1;
+                    nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
+                } else {
+                    nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
+                    nodes[current + 1] = node + 1;
+                }
+                if constexpr (std::is_same<R, SoaRay>::value) {
                     masks[current + 0] = mask;
                     masks[current + 1] = mask;
                 }
@@ -259,9 +273,15 @@ T Bvh::occluded(const R& ray) const
     LinearBvhNode* nodes[kStackSize];
     nodes[current] = &m_nodes[0];
 
+    bool reverseStackOrder[3];
     SoaMask masks[kStackSize];
-    if constexpr (std::is_same<R, SoaRay>::value) {
+    if constexpr (std::is_same<R, Ray>::value) {
+        for (uint32_t i = 0; i < 3; i++)
+            reverseStackOrder[i] = ray.dir.v[i] < 0.0f;
+    } else if constexpr (std::is_same<R, SoaRay>::value) {
         masks[current] = SoaMask::initAllTrue();
+        for (uint32_t i = 0; i < 3; i++)
+            reverseStackOrder[i] = ray.avgDir.v[i] < 0.0f;
     }
 
     do {
@@ -284,9 +304,14 @@ T Bvh::occluded(const R& ray) const
             // Do nothing
         } else if (node->primCount == LinearBvhNode::kInternalNode) {
             if (hit) {
-                // TODO: order
-                nodes[current + 0] = node + 1;
-                nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
+                // Visit closer child first
+                if (reverseStackOrder[node->splitAxis]) {
+                    nodes[current + 0] = node + 1;
+                    nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
+                } else {
+                    nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
+                    nodes[current + 1] = node + 1;
+                } 
                 if constexpr (std::is_same<R, SoaRay>::value) {
                     masks[current + 0] = mask;
                     masks[current + 1] = mask;

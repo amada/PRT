@@ -81,16 +81,18 @@ private:
 
     BvhBuildNode* m_children[kChildCount];
     int32_t m_primIndex = kInteriorNode;
-    int32_t m_primCount = 0;
+    int16_t m_primCount = 0;
+    int16_t m_splitAxis = 0;
 };
 
 struct LinearBvhNode
 {
-    const static int32_t kInternalNode = -1;
+    const static int16_t kInternalNode = -1;
 
     BBox bbox;
     int32_t primOrSecondNodeIndex;
-    int32_t primCount;
+    int16_t primCount;
+    int16_t splitAxis; // Axis splitting BVH node
 };
 
 

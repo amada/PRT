@@ -7,8 +7,8 @@
 #ifdef __ARM_NEON__
 #define R_NEON
 #else
-#define R_AVX4L
-//#define R_AVX8L
+//#define R_AVX4L
+#define R_AVX8L
 #endif
 
 #if defined(R_NEON)
@@ -113,7 +113,7 @@ inline T _neon_getLane(V v, int32_t lane) {
 }
 #endif
 
-static const float kPi = M_PI;
+static const float kPi = 3.14159265358979323846;
 
 
 class Vector2f
@@ -258,9 +258,9 @@ public:
         m_mask = vsetq_lane_u32(SET_MASK(mask & 0x4), m_mask, 2);
         m_mask = vsetq_lane_u32(SET_MASK(mask & 0x8), m_mask, 3);
 #elif defined(R_AVX4L)
-        m_mask = _mm_set_ps(SET_MASK(mask & 0x8), SET_MASK(mask & 0x4), SET_MASK(mask & 0x2), SET_MASK(mask & 0x1));
+        m_mask = _mm_set_epi32(SET_MASK(mask & 0x8), SET_MASK(mask & 0x4), SET_MASK(mask & 0x2), SET_MASK(mask & 0x1));
 #elif defined(R_AVX8L)
-        m_mask = _mm256_set_ps(SET_MASK(mask & 0x80), SET_MASK(mask & 0x40), SET_MASK(mask & 0x20), SET_MASK(mask & 0x10), 
+        m_mask = _mm256_set_epi32(SET_MASK(mask & 0x80), SET_MASK(mask & 0x40), SET_MASK(mask & 0x20), SET_MASK(mask & 0x10), 
             SET_MASK(mask & 0x8), SET_MASK(mask & 0x4), SET_MASK(mask & 0x2), SET_MASK(mask & 0x1));
 #endif
     }
@@ -781,8 +781,8 @@ public:
         auto x = vbslq_f32(swap.m_mask, m_z, m_x);
         auto z = temp;
 #else
-        auto temp = AVX_INT(blendv_ps)(m_z, m_x, mask);
-        auto x = AVX_INT(blendv_ps)(m_x, m_z, mask);
+        auto temp = AVX_INT(blendv_ps)(m_z, m_x, swap.m_mask);
+        auto x = AVX_INT(blendv_ps)(m_x, m_z, swap.m_mask);
         auto z = temp;
 #endif
         return SoaVector3f(x, m_y, z);
@@ -794,8 +794,8 @@ public:
         auto y = vbslq_f32(swap.m_mask, m_z, m_y);
         auto z = temp;
 #else
-        auto temp = AVX_INT(blendv_ps)(m_z, m_y, mask);
-        auto y = AVX_INT(blendv_ps)(m_y, m_z, mask);
+        auto temp = AVX_INT(blendv_ps)(m_z, m_y, swap.m_mask);
+        auto y = AVX_INT(blendv_ps)(m_y, m_z, swap.m_mask);
         auto z = temp;
 #endif
         return SoaVector3f(m_x, y, z);

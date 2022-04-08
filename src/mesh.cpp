@@ -206,7 +206,12 @@ void Mesh::loadObj(const char* path)
     uint32_t mi = 0;
     for (auto srcMat: objReader.GetMaterials()) {
         auto& m = materials[mi];
+#ifdef _WIN32
+        std::wstring parentPath = objPath.parent_path();
+        m.load(srcMat, std::string(parentPath.begin(), parentPath.end()));
+#else
         m.load(srcMat, objPath.parent_path());
+#endif
         mi++;
     }
 

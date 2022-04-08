@@ -112,7 +112,7 @@ void Material::load(const tinyobj::material_t& m, const std::string& dirPath)
     specular = Vector3f(m.specular, std::size(m.specular));
     emissive = Vector3f(m.emission, std::size(m.emission));
 
-    auto basePath = dirPath + std::filesystem::path::preferred_separator;
+    auto basePath = dirPath + static_cast<char>(std::filesystem::path::preferred_separator);
 
     auto replaceSeparator = [](const auto& path) {
         std::string result;

@@ -64,8 +64,11 @@ void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const M
     for (int32_t i = start; i <= end; i++) {
         Vector3f temp(0.0f);
         uint32_t indexBase = Mesh::kVertexCountPerPrim*primRemapping[i];
+        auto primBounds = BBox::init();
         for (int32_t j = 0; j < Mesh::kVertexCountPerPrim; j++) {
-            temp = temp + mesh.getPosition(mesh.getIndex(indexBase + j));
+            auto v = mesh.getPosition(mesh.getIndex(indexBase + j));
+            temp = temp + v;
+            primBounds.grow(v);
         }
         temp = 1.0f/Mesh::kVertexCountPerPrim*temp;
 
@@ -73,7 +76,7 @@ void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const M
         if (b == kBucketCount) b = b - 1;
 
         buckets[b].count++;
-        buckets[b].bounds.grow(temp);
+        buckets[b].bounds.grow(primBounds);
     }
 
     float lowestCost = std::numeric_limits<float>::max();

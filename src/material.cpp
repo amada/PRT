@@ -27,12 +27,34 @@ Vector4f Texture::sample(const Vector2f& uv) const
     const float kChannelScale = 1.0f/255.0f;
     float s = uv.x - std::floor(uv.x);
     float t = 1.0f - (uv.y - std::floor(uv.y));
-    int32_t x = s*(width - 1);
-    int32_t y = t*(height - 1);
-    int32_t bindex = 4*(x + y*width);
-    uint8_t* p = (uint8_t*)texels;
 
-    return Vector4f(p[bindex + 0]*kChannelScale, p[bindex + 1]*kChannelScale, p[bindex + 2]*kChannelScale, p[bindex + 3]*kChannelScale);
+    int32_t x[2];
+    x[0] = std::floor(s*(width - 1));
+    x[1] = std::ceil(s*(width - 1));
+    int32_t y[2];
+    y[0] = std::floor(t*(height - 1));
+    y[1] = std::ceil(t*(height - 1));
+
+    int32_t pindex[4];
+    pindex[0] = 4*(x[0] + y[0]*width);
+    pindex[1] = 4*(x[1] + y[0]*width);
+    pindex[2] = 4*(x[0] + y[1]*width);
+    pindex[3] = 4*(x[1] + y[1]*width);
+
+    float k[4];
+    k[0] = (1.0f - s)*(1.0f - t);
+    k[1] = s*(1.0f - t);
+    k[2] = (1.0f - s)*t;
+    k[3] = s*t;
+
+    uint8_t* p = (uint8_t*)texels;
+    Vector4f c(0.0f);
+    for (uint32_t i = 0; i < 4; i++) {
+        uint32_t base = pindex[i];
+        c = c + k[i]*Vector4f(p[base + 0], p[base + 1], p[base + 2], p[base + 3]);
+    }
+
+    return kChannelScale*c;
 }
 
 bool Texture::testAlpha(const Vector2f& uv) const
@@ -57,6 +79,7 @@ SoaMask Texture::testAlpha(const SoaMask& mask, const SoaVector2f& uv) const
     SoaInt y = t*(height - 1.0f);
     auto _bindex = 4*(x + y*width);
 
+    // TODO: do ~ while can be used because mask shouldn't be zero
     auto bits = mask.ballot();
     while (bits) {
         int32_t index = bitScanForward(bits);

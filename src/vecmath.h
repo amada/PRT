@@ -215,8 +215,17 @@ class Vector4f
 public:
     Vector4f() = default;
     Vector4f(float _x, float _y, float _z, float _w) : x(_x), y(_y), z(_z), w(_w) {}
+    Vector4f(float f) : x(f), y(f), z(f), w(f) {}
 
     Vector3f getXYZ() const { return Vector3f(x, y, z); }
+
+    Vector4f operator+(const Vector4f& v) const {
+        return Vector4f(x + v.x, y + v.y, z + v.z, w + v.w);
+    }
+
+    friend Vector4f operator*(float f, const Vector4f& v) {
+        return Vector4f(f*v.x, f*v.y, f*v.z, f*v.w);
+    }
 
     float x;
     float y;

@@ -4,7 +4,6 @@
 #include <limits>
 
 #include "thread_pool.h"
-#include "util.h"
 #include "vecmath.h"
 #include "triangle.h"
 #include "bvh.h"
@@ -17,9 +16,9 @@ using namespace prt;
 #define ASSERT_I_EQUAL(x, y) { if ((x) != (y)) { printf("Equal assertion failed (%d != %d) at line %d in %s\n", (x), (y), __LINE__, __FILE__); __builtin_trap(); }}
 
 
-void test_soa_vecmath()
+void test_vecmath()
 {
-    printf("test_soa_vecmath()\n");
+    printf("test_vecmath()\n");
 
     {
         SoaFloat f(0.0f);
@@ -39,6 +38,12 @@ void test_soa_vecmath()
         ASSERT_F_EQUAL(f.getLane(1), 2.0f);
         ASSERT_F_EQUAL(f.getLane(2), 3.0f);
         ASSERT_I_EQUAL(mask.ballot(), 1);
+
+        ASSERT_I_EQUAL(mask.anyTrue(), true);
+
+        mask = f.lessThan(-10.0f);
+
+        ASSERT_I_EQUAL(mask.anyTrue(), false);
     }
 
     {
@@ -79,6 +84,29 @@ void test_soa_vecmath()
     }
 }
 
+void test_triangle_intersection()
+{
+    printf("test_triangle_intersection()\n");
+
+    {
+        SoaVector3f v0(0.0f, 0.0f, 0.0f);
+        SoaVector3f v1(1.0f, 0.0f, 0.0f);
+        SoaVector3f v2(0.0f, 1.0f, 0.0f);
+        SoaVector3f o(0.5f, 0.5f, -1.0f);
+        SoaVector3f d(0.0f, 0.0f, 1.0f);
+
+        auto mask = SoaMask::initAllTrue();
+        auto swapXZ = SoaMask::initAllFalse();
+        auto swapYZ = SoaMask::initAllFalse();
+        auto intr = intersectTriangle(mask, o, d, swapXZ, swapYZ, v0, v1, v2);
+
+        ASSERT_F_EQUAL(intr.t.getLane(0), 1.0f);
+//        ASSERT_F_EQUAL(t.getLane(0), 0.5f);
+    }
+
+
+}
+
 void test_thread_pool()
 {
     printf("test_thread_pool()\n");
@@ -99,7 +127,8 @@ void test_thread_pool()
 
 int main()
 {
-    test_soa_vecmath();
+    test_vecmath();
+    test_triangle_intersection();
     test_thread_pool();
 
     return 0;

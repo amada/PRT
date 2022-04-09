@@ -4,6 +4,7 @@
 
 #include "vecmath.h"
 #include "triangle.h"
+#include "ray.h"
 #include "mesh.h"
 
 namespace prt
@@ -39,24 +40,6 @@ void selectS(SoaVar<T>& dst, const SoaVar<T>& src, const SoaMask& mask)
 }
 #endif
 
-// can be moved to ray.h????
-template<typename T, typename U>
-struct RayIntersectionT
-{
-    static const constexpr float kNoHitT = -1.0f;
-
-    RayIntersectionT() = default;
-    bool isHit() const { return t != kNoHitT; }
-
-    T t;
-    T i, j, k; // barycentric coordinate
-
-    U primId;
-    U meshId;
-};
-
-using RayIntersection = RayIntersectionT<float, uint32_t>;
-using SoaRayIntersection = RayIntersectionT<SoaFloat, SoaInt>;
 
 
 class Bvh;

@@ -30,12 +30,13 @@ Vector3f NormalVisualizer::Trace(const Camera& camera, const Scene& scene, uint3
     Vector3f color(0);
 
     auto ray = camera.GenerateJitteredRay(m_rand, x, y);
-    RayIntersection intr;
-    scene.intersect(intr, ray);
+    SingleRayHitPacket hitPacket;
+    scene.intersect(hitPacket, SingleRayPacket(ray));
 
-    if (intr.isHit()) {
+    const auto& hit = hitPacket.hit;
+    if (hit.isHit()) {
         SurfaceProperties prop;
-        scene.getSurfaceProperties(prop, intr);
+        scene.getSurfaceProperties(prop, hit);
         color = prop.normal*0.5f + 0.5f;
     }
 

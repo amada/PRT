@@ -8,7 +8,7 @@
 #include "log.h"
 #include "vecmath.h"
 #include "triangle.h"
-#include "bvh.h" // TODO temp for RayIntersection
+#include "bvh.h"
 #include "ray.h"
 
 #include "mesh.h"
@@ -276,7 +276,7 @@ void Mesh::loadObj(const char* path)
 }
 
 template<typename T, typename R>
-void Mesh::intersect(T& intr, const SoaMask& mask, const R& ray, uint32_t primIndex) const
+void Mesh::intersect(T& hitPacket, const RayPacketMask& mask, const R& packet, uint32_t primIndex) const
 {
     uint32_t indexBase = primIndex*Mesh::kVertexCountPerPrim;
     // TODO skip two-level indircection
@@ -289,10 +289,10 @@ void Mesh::intersect(T& intr, const SoaMask& mask, const R& ray, uint32_t primIn
 
     static_assert(kEpsilon > TriangleIntersection::kNoIntersection, "kEpsilon must be larger than TriangleIntersectionT::kNoIntersection to reject no intersection");
 
-    if constexpr (std::is_same<R, Ray>::value) {
-        auto triIntr = intersectTriangle(ray.org, ray.dir, p0, p1, p2);
+    if constexpr (std::is_same<R, SingleRayPacket>::value) {
+        auto triIntr = intersectTriangle(packet.ray.org, packet.ray.dir, p0, p1, p2);
 
-        if (triIntr.t >= kEpsilon && triIntr.t < intr.t) {
+        if (triIntr.t >= kEpsilon && triIntr.t < hitPacket.hit.t) {
             auto& mat = getMaterial(getPrimToMaterial(primIndex));
 
             bool passAlphaTest = true;
@@ -312,51 +312,61 @@ void Mesh::intersect(T& intr, const SoaMask& mask, const R& ray, uint32_t primIn
             }
 
             if (passAlphaTest) {
-                intr.t = triIntr.t;
-                intr.i = triIntr.i;
-                intr.j = triIntr.j;
-                intr.k = triIntr.k;
-                intr.primId = primIndex;
-                intr.meshId = m_id;
+                hitPacket.hit.t = triIntr.t;
+                hitPacket.hit.i = triIntr.i;
+                hitPacket.hit.j = triIntr.j;
+                hitPacket.hit.k = triIntr.k;
+                hitPacket.hit.primId = primIndex;
+                hitPacket.hit.meshId = m_id;
             }   
         }
-    } else if constexpr (std::is_same<R, SoaRay>::value) {
-        auto triIntr = intersectTriangle(mask, ray.org, ray.dir, ray.swapXZ, ray.swapYZ, p0, p1, p2);
+    } else if constexpr (std::is_same<R, RayPacket>::value) {
+        // TODO
+//        for (uint32_t i = 0; i < packet.count; i++) {
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
 
-        auto maskHit = triIntr.t.greaterThanOrEqual(kEpsilon) & triIntr.t.lessThan(intr.t);
+            // TODO
+//            if (!mask.masks[i].anyTrue())
+//                continue;
 
-        maskHit = maskHit & mask;
+            auto& hit = hitPacket.hits[i];
+            auto ray = packet.rays[i];
+            auto triIntr = intersectTriangle(mask.masks[i], ray.org, ray.dir, ray.swapXZ, ray.swapYZ, p0, p1, p2);
 
-        if (maskHit.anyTrue()) {
-            auto& mat = getMaterial(getPrimToMaterial(primIndex));
+            auto maskHit = triIntr.t.greaterThanOrEqual(kEpsilon) & triIntr.t.lessThan(hit.t);
 
-            if (mat.alphaTest) {
+        maskHit = maskHit & mask.masks[i];
 
-// access to texcoord index can be removed??
-                v0 = getTexcoordIndex(indexBase + 0);
-                v1 = getTexcoordIndex(indexBase + 1);
-                v2 = getTexcoordIndex(indexBase + 2);
+            if (maskHit.anyTrue()) {
+                auto& mat = getMaterial(getPrimToMaterial(primIndex));
 
-                auto& t0 = getTexcoord(v0);
-                auto& t1 = getTexcoord(v1);
-                auto& t2 = getTexcoord(v2);
-                auto uv = triIntr.i*t0 + triIntr.j*t1 + triIntr.k*t2;
+                if (mat.alphaTest) {
+    // access to texcoord index can be removed??
+                    v0 = getTexcoordIndex(indexBase + 0);
+                    v1 = getTexcoordIndex(indexBase + 1);
+                    v2 = getTexcoordIndex(indexBase + 2);
 
-                maskHit = mat.testAlpha(maskHit, uv);
-            }
+                    auto& t0 = getTexcoord(v0);
+                    auto& t1 = getTexcoord(v1);
+                    auto& t2 = getTexcoord(v2);
+                    auto uv = triIntr.i*t0 + triIntr.j*t1 + triIntr.k*t2;
 
-            intr.t = select(intr.t, triIntr.t, maskHit);
-            intr.i = select(intr.i, triIntr.i, maskHit);
-            intr.j = select(intr.j, triIntr.j, maskHit);
-            intr.k = select(intr.k, triIntr.k, maskHit);
-            intr.primId = select(intr.primId, primIndex, maskHit);
-            intr.meshId = select(intr.meshId, m_id, maskHit); // 
-        }    
+                    maskHit = mat.testAlpha(maskHit, uv);
+                }
+
+                hit.t = select(hit.t, triIntr.t, maskHit);
+                hit.i = select(hit.i, triIntr.i, maskHit);
+                hit.j = select(hit.j, triIntr.j, maskHit);
+                hit.k = select(hit.k, triIntr.k, maskHit);
+                hit.primId = select(hit.primId, primIndex, maskHit);
+                hit.meshId = select(hit.meshId, m_id, maskHit); // 
+            }    
+        }
     }
 }
 
-template void Mesh::intersect<RayIntersection, Ray>(RayIntersection& intr, const SoaMask& mask, const Ray& ray, uint32_t primIndex) const;
-template void Mesh::intersect<SoaRayIntersection, SoaRay>(SoaRayIntersection& intr, const SoaMask& mask, const SoaRay& ray, uint32_t primIndex) const;
+template void Mesh::intersect<SingleRayHitPacket, SingleRayPacket>(SingleRayHitPacket& hitPacket, const RayPacketMask& mask, const SingleRayPacket& packet, uint32_t primIndex) const;
+template void Mesh::intersect<RayHitPacket, RayPacket>(RayHitPacket& hitPacket, const RayPacketMask& mask, const RayPacket& packet, uint32_t primIndex) const;
 
 template<typename R>
 bool Mesh::occluded(const R& ray, uint32_t primIndex) const

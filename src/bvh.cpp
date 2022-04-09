@@ -194,7 +194,7 @@ void Bvh::buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode
 }
 
 template<typename T, typename R>
-void Bvh::intersect(T& intr, const R& ray) const
+void Bvh::intersect(T& hitPacket, const R& packet) const
 {
     const uint32_t kStackSize = 64;
     int32_t current = 0;
@@ -202,29 +202,35 @@ void Bvh::intersect(T& intr, const R& ray) const
     nodes[current] = &m_nodes[0];
 
     bool reverseStackOrder[3];
-    SoaMask masks[kStackSize];
-    if constexpr (std::is_same<R, Ray>::value) {
+    RayPacketMask masks[kStackSize];
+    if constexpr (std::is_same<R, SingleRayPacket>::value) {
         for (uint32_t i = 0; i < 3; i++)
-            reverseStackOrder[i] = ray.dir.v[i] < 0.0f;
-    } else if constexpr (std::is_same<R, SoaRay>::value) {
-        masks[current] = SoaMask::initAllTrue();
+            reverseStackOrder[i] = packet.ray.dir.v[i] < 0.0f;
+    } else if constexpr (std::is_same<R, RayPacket>::value) {
+        masks[current] = RayPacketMask::initAllTrue();
         for (uint32_t i = 0; i < 3; i++)
-            reverseStackOrder[i] = ray.avgDir.v[i] < 0.0f;
+            reverseStackOrder[i] = packet.avgDir.v[i] < 0.0f;
     }
 
     do {
         auto node = nodes[current];
         auto mask = masks[current];
 
-        auto t = node->bbox.intersect(ray.org, ray.dir, ray.invDir);
         bool hit;
 
-        if constexpr (std::is_same<R, Ray>::value) {
-            hit = (t != BBox::kNoHit && t < intr.t);
-        } else if constexpr (std::is_same<R, SoaRay>::value) {
-            auto maskBbox = t.notEquals(BBox::kNoHit).computeAnd(t.lessThan(intr.t));
+        if constexpr (std::is_same<R, SingleRayPacket>::value) {
+            auto t = node->bbox.intersect(packet.ray.org, packet.ray.dir, packet.ray.invDir);
+            hit = (t != BBox::kNoHit && t < hitPacket.hit.t);
+        } else if constexpr (std::is_same<R, RayPacket>::value) {
+            // TODO: for loop packet.count
+            for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
+                auto t = node->bbox.intersect(packet.rays[i].org, packet.rays[i].dir, packet.rays[i].invDir);
+//                mask.masks[i] = mask.masks[i] & t.notEquals(BBox::kNoHit).computeAnd(t.lessThan(hitPacket.hits[i].t));
+                mask.masks[i] = mask.masks[i] & t.notEquals(BBox::kNoHit).computeAnd(t.lessThan(hitPacket.hits[i].t));
+//                mask.masks[i] = mask.masks[i] & maskBBox;
+            }
 
-            mask = maskBbox & mask;
+//            mask = maskBbox & mask;
             hit = mask.anyTrue();
         }
 
@@ -240,7 +246,7 @@ void Bvh::intersect(T& intr, const R& ray) const
                     nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
                     nodes[current + 1] = node + 1;
                 }
-                if constexpr (std::is_same<R, SoaRay>::value) {
+                if constexpr (std::is_same<R, RayPacket>::value) {
                     masks[current + 0] = mask;
                     masks[current + 1] = mask;
                 }
@@ -254,9 +260,10 @@ void Bvh::intersect(T& intr, const R& ray) const
         } else {
             auto& m = m_mesh;
 
+// TODO: give all primIndex to m.intersect? rather than loop?
             for (int32_t i = 0; i < node->primCount; i++) {
                 uint32_t primIndex = m_primRemapping[node->primOrSecondNodeIndex + i];
-                m.intersect(intr, mask, ray, primIndex);
+                m.intersect(hitPacket, mask, packet, primIndex);
             }
         }
 
@@ -264,8 +271,8 @@ void Bvh::intersect(T& intr, const R& ray) const
     } while (current >= 0);
 }
 
-template void Bvh::intersect<RayIntersection, Ray>(RayIntersection&, const Ray&) const;
-template void Bvh::intersect<SoaRayIntersection, SoaRay>(SoaRayIntersection&, const SoaRay&) const;
+template void Bvh::intersect<SingleRayHitPacket, SingleRayPacket>(SingleRayHitPacket&, const SingleRayPacket&) const;
+template void Bvh::intersect<RayHitPacket, RayPacket>(RayHitPacket&, const RayPacket&) const;
 
 
 template<typename T, typename R>

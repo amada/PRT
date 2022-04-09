@@ -34,7 +34,7 @@ Vector3f PathTracer::Trace(const Camera& camera, const Scene& scene, uint32_t x,
 
     for (uint32_t i = 0; i < samples; i++) {
         auto ray = camera.GenerateJitteredRay(m_rand, x, y);
-        RayIntersection intr;
+        RayHit intr;
         scene.intersect(intr, ray);
 
         if (intr.isHit()) {
@@ -52,30 +52,34 @@ Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t
 {
     Vector3f color(0);
 
-    for (uint32_t i = 0; i < samples/SoaConstants::kLaneCount; i++) {
-        auto ray = camera.GenerateJitteredSoaRay(m_rand, x, y);
+    for (uint32_t i = 0; i < samples/RayPacket::kSize; i++) {
+        auto packet = camera.GenerateJitteredRayPacket(m_rand, x, y);
 
-        SoaRayIntersection intr;
-        scene.intersect(intr, ray);
+        RayHitPacket hitPacket;
+        scene.intersect(hitPacket, packet);
 
-        auto pos = intr.t*ray.dir + ray.org;
+        for (uint32_t v = 0; v < RayPacket::kVectorCount; v++) {
+            const auto& hit = hitPacket.hits[v];
+            const auto& ray = packet.rays[v];
+            auto pos = hit.t*ray.dir + ray.org;
 
-        for (uint32_t lane = 0; lane < SoaConstants::kLaneCount; lane++) {
-            RayIntersection sr;
-            sr.t = intr.t.getLane(lane);
-            sr.i = intr.i.getLane(lane);
-            sr.j = intr.j.getLane(lane);
-            sr.k = intr.k.getLane(lane);
-            sr.primId = intr.primId.getLane(lane);
-            sr.meshId = intr.meshId.getLane(lane);
- 
-            if (sr.isHit()) {
-                SurfaceProperties prop;
-                scene.getSurfaceProperties(prop, sr);
-                
-                color = color + ComputeRadiance(scene, ray.dir.getLane(lane), pos.getLane(lane), prop);
-//                color = color + ComputeRadiance(scene, ray.dir.getLane(lane), pos.getLane(lane), prop, 0);
-            } 
+            for (uint32_t lane = 0; lane < SoaConstants::kLaneCount; lane++) {
+                RayHit sr;
+                sr.t = hit.t.getLane(lane);
+                sr.i = hit.i.getLane(lane);
+                sr.j = hit.j.getLane(lane);
+                sr.k = hit.k.getLane(lane);
+                sr.primId = hit.primId.getLane(lane);
+                sr.meshId = hit.meshId.getLane(lane);
+    
+                if (sr.isHit()) {
+                    SurfaceProperties prop;
+                    scene.getSurfaceProperties(prop, sr);
+                    
+                    color = color + ComputeRadiance(scene, ray.dir.getLane(lane), pos.getLane(lane), prop);
+    //                color = color + ComputeRadiance(scene, ray.dir.getLane(lane), pos.getLane(lane), prop, 0);
+                } 
+            }
         }
     }
 
@@ -142,13 +146,14 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
         ray.dir = dir;
         ray.prepare();
 
-        RayIntersection intr;
-        scene.intersect(intr, ray);
+        SingleRayHitPacket hitPacket;
+        scene.intersect(hitPacket, SingleRayPacket(ray));
 
-        if (intr.isHit()) {
-            scene.getSurfaceProperties(prop, intr);
+        const auto& hit = hitPacket.hit;
+        if (hit.isHit()) {
+            scene.getSurfaceProperties(prop, hit);
 
-            pos = intr.t*ray.dir + ray.org;
+            pos = hit.t*ray.dir + ray.org;
         } else {
             break;
         }
@@ -246,7 +251,7 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
             ray.dir = reflDir;
 
             ray.prepare();
-            RayIntersection intr;
+            RayHit intr;
             scene.intersect(intr, ray);
 
             if (intr.isHit()) {
@@ -274,7 +279,7 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
     ray.dir = dir;
     ray.prepare();
 
-    RayIntersection intr;
+    RayHit intr;
     scene.intersect(intr, ray);
 
     if (intr.isHit()) {

@@ -43,7 +43,6 @@ using intvec_t = __m256i;
 using maskvec_t = __m256;
 #endif
 
-// TODO: Should have something like kRayPacketSize somewhere
 class SoaConstants {
 public:
 #ifdef R_AVX8L
@@ -86,20 +85,13 @@ inline floatvec_t _neon_sqrt(floatvec_t f) {
 }
 
 inline int32_t _neon_movemask(maskvec_t m) {
-    int32_t r = (vgetq_lane_u32(m, 0) ? 1 : 0) << 0;
-    r |= (vgetq_lane_u32(m, 1) ? 1 : 0) << 1;
-    r |= (vgetq_lane_u32(m, 2) ? 1 : 0) << 2;
-    r |= (vgetq_lane_u32(m, 3) ? 1 : 0) << 3;
-
-    return r;
+    const uint32x4_t mask = {1, 2, 4, 8};
+    return vaddvq_u32(vandq_u32(m, mask));
 }
 
 inline bool _neon_anytrue(maskvec_t m) {
-    uint32_t b = vgetq_lane_u32(m, 0);
-    b |= vgetq_lane_u32(m, 1);
-    b |= vgetq_lane_u32(m, 2);
-    b |= vgetq_lane_u32(m, 3);
-    return (b != 0);
+    uint32x2_t temp = vorr_u32(vget_low_u32(m), vget_high_u32(m));
+    return vget_lane_u32(vpmax_u32(temp, temp), 0);
 }
 
 template<typename V, typename T>
@@ -273,6 +265,18 @@ public:
         r.m_mask = _mm_castsi128_ps(_mm_set1_epi32(0xffffffff));
 #elif defined(R_AVX8L)
         r.m_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0xffffffff));
+#endif
+        return r;
+    }
+
+    static SoaMask initAllFalse() {
+        SoaMask r;
+#if defined(R_NEON)
+        r.m_mask = vdupq_n_u32(0);
+#elif defined(R_AVX4L)
+        r.m_mask = _mm_castsi128_ps(_mm_set1_epi32(0));
+#elif defined(R_AVX8L)
+        r.m_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0));
 #endif
         return r;
     }

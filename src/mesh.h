@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vecmath.h"
+#include "ray.h"
 #include "material.h"
 
 namespace prt
@@ -26,7 +27,7 @@ public:
     void create(uint32_t primCount, uint32_t vertexCount, uint32_t materialCount, bool hasVertexNormal);
 
     template<typename T, typename R>
-    void intersect(T& intr, const SoaMask& mask, const R& ray, uint32_t primIdx) const;
+    void intersect(T& hitPacket, const RayPacketMask& mask, const R& packet, uint32_t primIdx) const;
 
     template<typename R>
     bool occluded(const R& ray, uint32_t primIdx) const;

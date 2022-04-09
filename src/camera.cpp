@@ -30,30 +30,41 @@ Ray Camera::GenerateJitteredRay(Random& rand, uint32_t x, uint32_t y) const
     return ray;
 }
 
-SoaRay Camera::GenerateJitteredSoaRay(Random& rand, uint32_t x, uint32_t y) const
+RayPacket Camera::GenerateJitteredRayPacket(Random& rand, uint32_t x, uint32_t y) const
 {
-    SoaRay ray;
-    const float screenScale = 0.6f;
-    float s = 0.125f*m_invWidth;
+    RayPacket packet;
 
-    Vector3f dir[SoaConstants::kLaneCount];
+    Vector3f avgDir(0.0f);
 
-    for (uint32_t i = 0; i < SoaConstants::kLaneCount; i++) {
-        float dx = rand.generateMinus1to1() * s;
-        float dy = rand.generateMinus1to1() * s;
-        float nx = 2.0f*(x*m_invWidth - 0.5f + dx)*screenScale;
-        float ny = -2.0f*(y*m_invHeight - 0.5f + dy)*screenScale;
-        dir[i] = normalize(nx*m_right + ny*m_up + m_dir);
+    for (uint32_t v = 0; v < RayPacket::kVectorCount; v++) {
+        SoaRay ray;
+        const float screenScale = 0.6f;
+        float s = 0.125f*m_invWidth;
+
+        Vector3f dir[SoaConstants::kLaneCount];
+
+        for (uint32_t i = 0; i < SoaConstants::kLaneCount; i++) {
+            float dx = rand.generateMinus1to1() * s;
+            float dy = rand.generateMinus1to1() * s;
+            float nx = 2.0f*(x*m_invWidth - 0.5f + dx)*screenScale;
+            float ny = -2.0f*(y*m_invHeight - 0.5f + dy)*screenScale;
+            dir[i] = normalize(nx*m_right + ny*m_up + m_dir);
+            avgDir = avgDir + dir[i];
+        }
+
+        ray.maxT = 100000.0f;
+        ray.org = m_pos;
+        auto d = SoaVector3f(dir);
+        ray.dir = d;
+
+        ray.prepare();
+
+        packet.rays[v] = ray;
     }
 
-    ray.maxT = 100000.0f;
-    ray.org = m_pos;
-    auto d = SoaVector3f(dir);
-    ray.dir = d;
+    packet.avgDir = avgDir/RayPacket::kSize;
 
-    ray.prepare();
-
-    return ray;
+    return packet;
 }
 
 } // namespace prt

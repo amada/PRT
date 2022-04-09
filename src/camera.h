@@ -7,7 +7,8 @@ namespace prt
 
 class Random;
 class Ray;
-class SoaRay;
+struct RayPacket;
+//class SoaRay;
 
 class Camera
 {
@@ -31,7 +32,8 @@ public:
     }
 
     Ray GenerateJitteredRay(Random& rand, uint32_t x, uint32_t y) const;
-    SoaRay GenerateJitteredSoaRay(Random& rand, uint32_t x, uint32_t y) const;
+    RayPacket GenerateJitteredRayPacket(Random& rand, uint32_t x, uint32_t y) const;
+//    SoaRay GenerateJitteredSoaRay(Random& rand, uint32_t x, uint32_t y) const;
 
     Vector3f m_pos;
     Vector3f m_dir;

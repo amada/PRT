@@ -60,8 +60,6 @@ public:
     SoaMask swapXZ;
     SoaMask swapYZ;
 
-    Vector3f avgDir;
-
 //    bool m_verbose = false;
 
 // TODO: should calculate after org, dir are set
@@ -78,13 +76,104 @@ public:
 
         swapXZ = mask_x;
         swapYZ = mask_y;
-
-        Vector3f avg(0.0f);
-        for (uint32_t i = 0; i < SoaConstants::kLaneCount; i++) {
-            avg = avg + d.getLane(i);
-        }
-        avgDir = avg/SoaConstants::kLaneCount;
     }
 };
+
+struct SingleRayPacket
+{
+    Ray ray;
+
+    SingleRayPacket(const Ray& ray) : ray(ray) {}
+};
+
+struct RayPacket
+{
+    static const uint32_t kSize = 8;
+    static const uint32_t kVectorCount = kSize/SoaConstants::kLaneCount;
+    SoaRay rays[kVectorCount];
+    Vector3f avgDir;
+//    uint32_t count;
+};
+
+struct RayPacketMask
+{
+    SoaMask masks[RayPacket::kVectorCount];
+
+    static RayPacketMask initAllTrue() {
+        RayPacketMask result;
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
+            result.masks[i] = SoaMask::initAllTrue();
+        }
+        return result;
+    }
+
+    RayPacketMask operator&(const RayPacketMask& other) const {
+        RayPacketMask result;
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
+            result.masks[i] = masks[i] & other.masks[i];
+        }
+        return result;
+    }
+
+    bool anyTrue() const {
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
+            if (masks[i].anyTrue()) {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
+template<typename T, typename U>
+struct RayHitT
+{
+    static const constexpr float kMissT = -1.0f;
+
+    RayHitT() = default;
+    bool isHit() const { return t != kMissT; }
+
+    T t;
+    T i, j, k; // barycentric coordinate
+
+    U primId;
+    U meshId;
+};
+
+using RayHit = RayHitT<float, uint32_t>;
+using SoaRayHit = RayHitT<SoaFloat, SoaInt>;
+
+struct SingleRayHitPacket
+{
+    RayHit hit;
+
+    void setMaxT(const SingleRayPacket& packet) {
+        hit.t = packet.ray.maxT;
+    }
+
+    void setMissForMaxT(const SingleRayPacket& packet) {
+        if (hit.t == packet.ray.maxT)
+            hit.t = RayHit::kMissT;        
+    }
+};
+
+struct RayHitPacket
+{
+     SoaRayHit hits[RayPacket::kVectorCount];
+
+    void setMaxT(const RayPacket& packet) {
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++)
+            hits[i].t = packet.rays[i].maxT;
+    }
+
+    void setMissForMaxT(const RayPacket& packet) {
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
+            auto mask = hits[i].t.equals(packet.rays[i].maxT);
+            hits[i].t = select(hits[i].t, RayHit::kMissT, mask);
+        }
+    }        
+};
+
+
 
 } // namespace prt

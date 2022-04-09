@@ -26,13 +26,13 @@ public:
     void init();
 
     template<typename T, typename R>
-    void intersect(T& intr, const R& ray) const;
+    void intersect(T& intr, const R& packet) const;
 
     template<typename T, typename R>
-    T occluded(const R& ray) const;
+    T occluded(const R& packet) const;
 
     template<typename T, typename U>
-    void getSurfaceProperties(T& properties, const U& intr) const;
+    void getSurfaceProperties(T& properties, const U& hit) const;
 
     void add(Bvh* bvh) { 
         bvh->m_mesh.m_id = m_bvh.size();

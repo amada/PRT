@@ -12,6 +12,8 @@
 #include "camera.h"
 #include "bvh.h"
 #include "scene.h"
+#include "diffuse_visualizer.h"
+#include "normal_visualizer.h"
 #include "path_tracer.h"
 
 using namespace prt;
@@ -20,58 +22,85 @@ const uint32_t kWidth = 256*4;
 const uint32_t kHeight = 256*4;
 
 
-void raytrace_cornell_box()
+void setupCornellBox(Scene& scene, Camera& camera, bool withTeapot)
+{
+    auto cbox = new Bvh;;
+    cbox->build(SampleModels::getCornellBox(true));
+    scene.add(cbox);
+
+    if (withTeapot) {
+        Mesh teapot;
+        teapot.loadObj("../../data/teapot/teapot.obj",
+                       {.diffuse = Vector3f{0.9f, 0.9f, 0.9f}, .reflectionType = ReflectionType::kDiffuse});
+
+        auto pos = teapot.getPositionBuffer();
+
+        for (uint32_t i = 0; i < teapot.getVertexCount(); i++) {
+            //        float s = 0.3f;//1.0f;// 0.005f // bunny
+            float s = 0.005f; // teapot
+            pos[i] = s * pos[i] + Vector3f(-0.5f, 0.0f, 0.5f);
+        }
+        teapot.calculateVertexNormals();
+        auto teapotBvh = new Bvh;
+
+        teapotBvh->build(std::move(teapot));
+        scene.add(teapotBvh);
+    }
+
+    camera.create({0, 0.95, 2.8}, {0, 0, -1}, kWidth, kHeight);
+}
+
+void setupSponza(Scene& scene, Camera& camera)
+{
+    Mesh sponza;
+    sponza.loadObj("../../data/sponza/sponza.obj");
+    sponza.calculateVertexNormals();
+
+    auto sponzaBvh = new Bvh;;
+    sponzaBvh->build(std::move(sponza));
+
+    scene.setDirectionalLight(normalize(Vector3f(0.05f, 1.0f, 0.1f)), Vector3f(16.7f, 15.6f, 11.7f)); // sky.exr
+
+    scene.add(sponzaBvh);
+
+    camera.create({-10, 320.0, 0.0}, {0.5, -0.162612f, -0.1}, kWidth, kHeight); // Sponza
+}
+
+void setupSanMiguelLowPoly(Scene& scene, Camera& camera)
+{
+    Mesh sanMiguel;
+    sanMiguel.loadObj("../../data/san-miguel/san-miguel-low-poly.obj");
+    sanMiguel.calculateVertexNormals();
+
+    auto sanMiguelBvh = new Bvh;
+    sanMiguelBvh->build(std::move(sanMiguel));
+
+    scene.setDirectionalLight(normalize(Vector3f(0.2f, 1.0f, 0.2f)), Vector3f(16.7f, 15.6f, 11.7f)); // sky.exr
+    scene.add(sanMiguelBvh);
+
+    camera.create({10, 2.0, 10.2}, {0, 0.01, -1}, kWidth, kHeight); // San Miguel
+}
+
+void raytrace_scene()
 {
     Image image(kWidth, kHeight);
- 
+
     ThreadPool threadPool;
 
-    bool withBunny = false;
-
-    Bvh cbox;
-    cbox.build(SampleModels::getCornellBox(true));
-
-    Bvh bunny;
-#if 0
-    bunny.Build(SampleModels::GetBunny(Vector3f(0.0f), {
-        .diffuse = Vector3f{0.5f, 0.5f, 0.5f},
-//        .diffuse = Vector3f{0.8f, 0.8f, 0.8f},
-        .reflectionType = ReflectionType::kDiffuse
-        });
-#endif
-
-#if 0
-    Mesh teapot;
-    teapot.loadObj("../../data/teapot/teapot.obj",
-        {.diffuse = Vector3f{0.9f, 0.9f, 0.9f}, .reflectionType = ReflectionType::kDiffuse});
-    auto pos = teapot.getPositionBuffer();
-
-    for (uint32_t i = 0; i < teapot.getVertexCount(); i++) {
-//        float s = 0.3f;//1.0f;// 0.005f // bunny
-        float s = 0.005f; // teapot
-        pos[i] = s*pos[i] + Vector3f(-0.5f, 0.0f, 0.5f);
-    }
-    bunny.build(std::move(teapot));
-    withBunny = true;
-#endif
-
     Scene scene;
-    scene.init();
-    scene.add(&cbox);
-    if (withBunny) {
-        scene.add(&bunny);
-    }
+    Camera camera;
 
+    scene.init();
+    setupCornellBox(scene, camera, true);
+//    setupSponza(scene, camera);
+//    setupSanMiguelLowPoly(scene, camera);
 
     auto start = std::chrono::steady_clock::now();
-    threadPool.create(16);
-
-    Camera camera({0, 0.95, 2.8}, {0, -0.042612f, -1}, kWidth, kHeight);
-    // camera dir should be normalized
+    threadPool.create(10);
 
     const uint32_t kTileWidth = 16;
     const uint32_t kTileHeight = 16;
-    const uint32_t kSamples = 64*2;
+    const uint32_t kSamples = 32;
 
     uint32_t totalTasks = 0;
 
@@ -84,8 +113,14 @@ void raytrace_cornell_box()
             auto x1 = std::min(x + kTileWidth, kWidth - 1);
 
             threadPool.queue([&image, x0, y0, x1, y1, &scene, &camera]() {
+#if 0
+//                DiffuseVisualizer visualizer;
+                NormalVisualizer visualizer;
+                visualizer.TraceBlock(image, x0, y0, x1, y1, scene, camera);
+#else
                 PathTracer tracer;
                 tracer.TraceBlock(image, x0, y0, x1, y1, scene, camera, kSamples);
+#endif
             });
 
             totalTasks++;
@@ -121,7 +156,7 @@ void raytrace_cornell_box()
 
 int main(int argc, char** argv)
 {
-    raytrace_cornell_box();
+    raytrace_scene();
 
     return 0;
 }

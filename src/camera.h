@@ -13,9 +13,13 @@ struct RayPacket;
 class Camera
 {
 public:
-    Camera(const Vector3f& pos, const Vector3f& dir, uint32_t width, uint32_t height)
-     : m_pos(pos), m_dir(normalize(dir)), m_width(width), m_height(height)
+    Camera() = default;
+    void create(const Vector3f& pos, const Vector3f& dir, uint32_t width, uint32_t height)
     {
+        m_pos = pos;
+        m_dir = normalize(dir);
+        m_width = width;
+        m_height = height;
         m_invWidth = 1.0f/width;
         m_invHeight = 1.0f/height;
 

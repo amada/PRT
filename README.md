@@ -5,18 +5,41 @@ This is a playground repository for ray tracing-related experiments. The impleme
 
 Features
 --------
-* Path tracing
-* Acceleration structures
-  * BVH for triangle mesh
 * Support for SIMD instructions
-  * Arm Neon, AVX2
-  * Using SIMD lanes for ray packet-like tracing
+  - [x] Arm Neon
+  - [x] SSE/AVX
+* Acceleration structures
+  - [x] BVH for triangle mesh
+* Ray packet tracing
+  - [x] Primary rays
+  - [x] SIMD for processing multiple rays in packet
+  - [ ] Secondary rays/binning
+  - [ ] Compaction
+* Path tracing
+  - [x] Indirect diffuse
+  - [x] Perfect specular
+  - [x] Emissive
+  - [ ] BSDF
+  - [ ] Refraction
+  - [ ] Volumetric
+* Direct lights
+  - [x] Directional light
+  - [ ] Infinite light
+  - [ ] Point light
+  - [ ] Spot light
+* Texture mapping
+  - [x] Diffuse
+  - [x] Alpha mask
+  - [x] Bump
+  - [x] Bilinear filtering
+  - [ ] Mipmapping
+* Camera
 
 
 Supported platforms
 -------------------
 The code is developed primarily on macOS, but should work on other platforms.
-* macOS
+* macOS x86/Apple M1
 * Windows
 * Raspberry Pi
 
@@ -26,6 +49,14 @@ How to build
 TODO
 
 
-Rendered image
---------------
+Rendered images
+---------------
+
+Cornell Box + Teapot @2048spp
+-----------------------------
 ![Cornell Box + Teapot](images/cornell_box_teapot.png)
+
+San Miguel @64spp
+-----------------
+![San Miguel](images/san_miguel.png)
+san-miguel-low-poly from https://casual-effects.com/data/

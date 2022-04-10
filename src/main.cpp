@@ -31,7 +31,7 @@ void setupCornellBox(Scene& scene, Camera& camera, bool withTeapot)
     if (withTeapot) {
         Mesh teapot;
         teapot.loadObj("../../data/teapot/teapot.obj",
-                       {.diffuse = Vector3f{0.9f, 0.9f, 0.9f}, .reflectionType = ReflectionType::kDiffuse});
+                       {.diffuse = Vector3f{0.9f, 0.9f, 0.9f}, .reflectionType = ReflectionType::kSpecular});
 
         auto pos = teapot.getPositionBuffer();
 
@@ -47,7 +47,7 @@ void setupCornellBox(Scene& scene, Camera& camera, bool withTeapot)
         scene.add(teapotBvh);
     }
 
-    camera.create({0, 0.95, 2.8}, {0, 0, -1}, kWidth, kHeight);
+    camera.create({0, 0.965, 2.6}, {0, 0, -1.0f}, kWidth, kHeight);
 }
 
 void setupSponza(Scene& scene, Camera& camera)

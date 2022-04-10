@@ -25,11 +25,6 @@ void DiffuseVisualizer::TraceBlock(Image& image, uint32_t x0, uint32_t y0, uint3
     }
 }
 
-float repeat(float f)
-{
-    return f - std::floor(f);
-}
-
 Vector3f DiffuseVisualizer::Trace(const Camera& camera, const Scene& scene, uint32_t x, uint32_t y)
 {
     Vector3f color(0);

@@ -321,8 +321,6 @@ void Mesh::intersect(T& hitPacket, const RayPacketMask& mask, const R& packet, u
             }   
         }
     } else if constexpr (std::is_same<R, RayPacket>::value) {
-        // TODO
-//        for (uint32_t i = 0; i < packet.count; i++) {
         for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
 
             // TODO
@@ -335,7 +333,7 @@ void Mesh::intersect(T& hitPacket, const RayPacketMask& mask, const R& packet, u
 
             auto maskHit = triIntr.t.greaterThanOrEqual(kEpsilon) & triIntr.t.lessThan(hit.t);
 
-        maskHit = maskHit & mask.masks[i];
+            maskHit = maskHit & mask.masks[i];
 
             if (maskHit.anyTrue()) {
                 auto& mat = getMaterial(getPrimToMaterial(primIndex));
@@ -412,6 +410,64 @@ bool Mesh::occluded(const R& ray, uint32_t primIndex) const
 }
 
 template bool Mesh::occluded<Ray>(const Ray& ray, uint32_t primIndex) const;
+
+
+template<typename T, typename U>
+void Mesh::getSurfaceProperties(T& prop, const U& hit) const
+{
+    if constexpr (std::is_same<U, RayHit>::value) {
+        Vector3f normal;
+
+        uint32_t indexBase = hit.primId*Mesh::kVertexCountPerPrim;
+        uint32_t v0 = getIndex(indexBase + 0);
+        uint32_t v1 = getIndex(indexBase + 1);
+        uint32_t v2 = getIndex(indexBase + 2);
+
+        const Vector3f& p0 = getPosition(v0);
+        const Vector3f& p1 = getPosition(v1);
+        const Vector3f& p2 = getPosition(v2);
+
+        if (hasVertexNormal()) {
+            const auto &n0 = getNormal(v0);
+            const auto &n1 = getNormal(v1);
+            const auto &n2 = getNormal(v2);
+            normal = normalize(hit.i * n0 + hit.j * n1 + hit.k * n2);
+        } else {
+//            const Vector3f &p0 = getPosition(v0);
+//            const Vector3f &p1 = getPosition(v1);
+//            const Vector3f &p2 = getPosition(v2);
+            normal = normalize(cross(p1 - p0, p2 - p0));
+        }
+
+// TODO: remove indirection?
+// use 3 floats at once
+        v0 = getTexcoordIndex(indexBase + 0);
+        v1 = getTexcoordIndex(indexBase + 1);
+        v2 = getTexcoordIndex(indexBase + 2);
+        #if 1
+        const auto& t0 = getTexcoord(v0);
+        const auto& t1 = getTexcoord(v1);
+        const auto& t2 = getTexcoord(v2);
+        prop.uv = hit.i*t0 + hit.j*t1 + hit.k*t2;
+        #endif
+
+        prop.normal = normal;
+        prop.material = &getMaterial(getPrimToMaterial(hit.primId));
+
+        prop.dp01 = normalize(p1 - p0);
+        prop.dp02 = normalize(p2 - p0);
+        prop.duv01 = safeNormalize(t1 - t0);
+        prop.duv02 = safeNormalize(t2 - t0);
+
+    } else if constexpr (std::is_same<U, SoaRayHit>::value) {
+        __builtin_trap();
+    } else {
+        __builtin_trap();
+    }
+}
+
+template void Mesh::getSurfaceProperties<SurfaceProperties, RayHit>(SurfaceProperties&, const RayHit&) const;
+
 
 
 }

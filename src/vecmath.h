@@ -118,6 +118,14 @@ public:
         return Vector2f(x + v.x, y + v.y);
     }
 
+    Vector2f operator-(const Vector2f& v) const {
+        return Vector2f(x - v.x, y - v.y);
+    }
+
+    Vector2f operator*(const Vector2f& v) const {
+        return Vector2f(x*v.x, y*v.y);
+    }
+
     friend Vector2f operator*(float f, const Vector2f& v) {
         return Vector2f(f*v.x, f*v.y);
     }
@@ -266,28 +274,15 @@ public:
 #endif
     }
 
-    static SoaMask initAllTrue() {
-        SoaMask r;
+    void setAll(bool b) {
+#define SET_MASK(i) ((i) ? 0xffffffffu : 0u)
 #if defined(R_NEON)
-        r.m_mask = vdupq_n_u32(0xffffffffu);
+        m_mask = vdupq_n_u32(SET_MASK(b));
 #elif defined(R_AVX4L)
-        r.m_mask = _mm_castsi128_ps(_mm_set1_epi32(0xffffffff));
+        m_mask = _mm_castsi128_ps(_mm_set1_epi32(SET_MASK(b)));
 #elif defined(R_AVX8L)
-        r.m_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0xffffffff));
+        m_mask = _mm256_castsi256_ps(_mm256_set1_epi32(SET_MASK(b)));
 #endif
-        return r;
-    }
-
-    static SoaMask initAllFalse() {
-        SoaMask r;
-#if defined(R_NEON)
-        r.m_mask = vdupq_n_u32(0);
-#elif defined(R_AVX4L)
-        r.m_mask = _mm_castsi128_ps(_mm_set1_epi32(0));
-#elif defined(R_AVX8L)
-        r.m_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0));
-#endif
-        return r;
     }
 
     maskvec_t getRawValue() const {
@@ -1027,6 +1022,34 @@ inline SoaInt::SoaInt(const SoaFloat& f)
 #endif
 }
 
+
+
+inline float dot(const Vector2f& v0, const Vector2f& v1)
+{
+    auto v = v0*v1;
+    return v.x + v.y;
+}
+
+inline float length(const Vector2f& v)
+{
+    return sqrtf(dot(v, v));
+}
+
+inline Vector2f normalize(const Vector2f& v)
+{
+    float invlen = 1.0f/length(v);
+    return invlen*v;
+}
+
+inline Vector2f safeNormalize(const Vector2f& v)
+{
+    float len = length(v);
+    if (len < 0.00001f) {
+        return Vector2f(0.0f, 0.0f);
+    }
+    float invlen = 1.0f/len;
+    return invlen*v;
+}
 
 
 inline Vector3f min(const Vector3f& v0, const Vector3f& v1)

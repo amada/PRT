@@ -7,6 +7,28 @@
 namespace prt
 {
 
+template<typename T>
+struct SoaVar
+{
+    T lanes[SoaConstants::kLaneCount];
+};
+
+
+template<typename T, typename U>
+struct SurfacePropertiesT
+{
+    T normal;
+    U material;
+    Vector2f uv;
+    Vector2f duv01;
+    Vector2f duv02;
+    Vector3f dp01;
+    Vector3f dp02;
+};
+
+using SurfaceProperties = SurfacePropertiesT<Vector3f, const Material*>;
+//using SoaSurfaceProperties = SurfacePropertiesT<SoaVector3f, SoaVar<const Material*>>;
+
 // struct?
 class Mesh
 {
@@ -31,6 +53,9 @@ public:
 
     template<typename R>
     bool occluded(const R& ray, uint32_t primIdx) const;
+
+    template<typename T, typename U>
+    void getSurfaceProperties(T& properties, const U& hit) const;
 
     void calculateVertexNormals();
 

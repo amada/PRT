@@ -207,7 +207,7 @@ void Bvh::intersect(T& hitPacket, const R& packet) const
         for (uint32_t i = 0; i < 3; i++)
             reverseStackOrder[i] = packet.ray.dir.v[i] < 0.0f;
     } else if constexpr (std::is_same<R, RayPacket>::value) {
-        masks[current] = RayPacketMask::initAllTrue();
+        masks[current].setAll(true);
         for (uint32_t i = 0; i < 3; i++)
             reverseStackOrder[i] = packet.avgDir.v[i] < 0.0f;
     }
@@ -225,12 +225,9 @@ void Bvh::intersect(T& hitPacket, const R& packet) const
             // TODO: for loop packet.count
             for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
                 auto t = node->bbox.intersect(packet.rays[i].org, packet.rays[i].dir, packet.rays[i].invDir);
-//                mask.masks[i] = mask.masks[i] & t.notEquals(BBox::kNoHit).computeAnd(t.lessThan(hitPacket.hits[i].t));
-                mask.masks[i] = mask.masks[i] & t.notEquals(BBox::kNoHit).computeAnd(t.lessThan(hitPacket.hits[i].t));
-//                mask.masks[i] = mask.masks[i] & maskBBox;
+                mask.computeAndSelf(i, t.notEquals(BBox::kNoHit).computeAnd(t.lessThan(hitPacket.hits[i].t)));
             }
 
-//            mask = maskBbox & mask;
             hit = mask.anyTrue();
         }
 
@@ -289,7 +286,7 @@ T Bvh::occluded(const R& ray) const
         for (uint32_t i = 0; i < 3; i++)
             reverseStackOrder[i] = ray.dir.v[i] < 0.0f;
     } else if constexpr (std::is_same<R, SoaRay>::value) {
-        masks[current] = SoaMask::initAllTrue();
+        masks[current].setAll(true);
         for (uint32_t i = 0; i < 3; i++)
             reverseStackOrder[i] = ray.avgDir.v[i] < 0.0f;
     }

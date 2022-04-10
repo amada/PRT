@@ -14,17 +14,11 @@ namespace prt
 
 class Mesh;
 
-#if 0
-// TODO pod?
-class String final
-{
-public:
-    String(const char* str) : m_str(str) {}
+struct Material;
+template<typename T, typename U>
+struct SurfacePropertiesT;
+using SurfaceProperties = SurfacePropertiesT<Vector3f, const Material*>;
 
-private:
-    std::string m_str;
-};
-#endif
 
 enum class ReflectionType : uint32_t {
     kDiffuse = 0,
@@ -40,13 +34,17 @@ struct Texture
     uint16_t width;
     uint16_t height;
     uint16_t format;
-    uint16_t padding;
+    uint16_t bytesPerPixel;
     void* texels;
 
 // TODO: Sample texture with other than 4 channels
 //    template<typename T>
     bool isValid() const { return texels != nullptr; }
-    Vector4f sample(const Vector2f& uv) const;
+
+    float onePixel() const { return 0.5f/width + 0.5f/height; }
+
+    template<typename T>
+    T sample(const Vector2f& uv) const;
     bool testAlpha(const Vector2f& uv) const;
     SoaMask testAlpha(const SoaMask& mask, const SoaVector2f& uv) const;
 
@@ -54,7 +52,7 @@ struct Texture
 private:
     const int32_t kAlphaThreashold = 127;
 
-    void load(const char* path);
+    void load(const char* path, bool bumpTexture = false);
 };
 
 struct Material
@@ -69,12 +67,13 @@ struct Material
     Texture ambientMap;
     Texture specularMap;
     Texture emissiveMap;
-    Texture normalMap;
+    Texture bumpMap;
     ReflectionType reflectionType;
     bool alphaTest;
 
     // TODO: support for alpha channel?
     Vector3f sampleDiffuse(const Vector2f& uv) const;
+    Vector3f sampleBump(const SurfaceProperties& prop) const;
     bool testAlpha(const Vector2f& uv) const {
         return diffuseMap.testAlpha(uv);
     }

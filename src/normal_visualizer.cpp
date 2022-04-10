@@ -37,7 +37,9 @@ Vector3f NormalVisualizer::Trace(const Camera& camera, const Scene& scene, uint3
     if (hit.isHit()) {
         SurfaceProperties prop;
         scene.getSurfaceProperties(prop, hit);
-        color = prop.normal*0.5f + 0.5f;
+
+        color = prop.material->sampleBump(prop)*0.5f + 0.5f;
+//        color = prop.normal*0.5f + 0.5f;
     }
 
     return color;

@@ -34,13 +34,14 @@ Vector3f PathTracer::Trace(const Camera& camera, const Scene& scene, uint32_t x,
 
     for (uint32_t i = 0; i < samples; i++) {
         auto ray = camera.GenerateJitteredRay(m_rand, x, y);
-        RayHit intr;
-        scene.intersect(intr, ray);
+        SingleRayHitPacket hitPacket;
+        scene.intersect(hitPacket, SingleRayPacket(ray));
 
-        if (intr.isHit()) {
-            auto pos = intr.t*ray.dir + ray.org;
+        const auto& hit = hitPacket.hit;
+        if (hit.isHit()) {
+            auto pos = hit.t*ray.dir + ray.org;
             SurfaceProperties prop;
-            scene.getSurfaceProperties(prop, intr);
+            scene.getSurfaceProperties(prop, hit);
             color = color + ComputeRadiance(scene, ray.dir, pos, prop);
         } 
     }
@@ -99,7 +100,7 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
 
     while (depth < 14) {
         auto material = prop.material;
-        auto normal = prop.normal;
+        auto normal = prop.material->sampleBump(prop);
 
         if (material != nullptr && material->emissive.x != 0) {
             result = result + beta*material->emissive;
@@ -112,6 +113,8 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
             float r2 = rand.generate();
             float r2sq = std::sqrt(r2);
             float r1 = rand.generate();
+
+            // TODO: should be able to use derivatives in prop
             Vector3f u = (fabsf(normal.x) > 0.1f) ? Vector3f(0, 1.0f, 0.0f) : Vector3f(1.0f, 0, 0);
             auto tangent = normalize(cross(normal, u));
             auto binormal = normalize(cross(tangent, normal));
@@ -135,7 +138,21 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
                     lightRadiance = light.intensity*std::max(dot(light.dir, normal), 0.0f)/kPi;
                 }
             }
-        }        
+        } else if (material->reflectionType == ReflectionType::kSpecular) {
+            float r2 = rand.generate();
+            float r2sq = std::sqrt(r2);
+            float r1 = rand.generate();
+            Vector3f u = (fabsf(normal.x) > 0.1f) ? Vector3f(0, 1.0f, 0.0f) : Vector3f(1.0f, 0, 0);
+            auto tangent = normalize(cross(normal, u));
+            auto binormal = normalize(cross(tangent, normal));
+
+            float theta = 2.0f*kPi*r1;
+            // Cosine-weighted distribution
+            auto diffuseDir = r2sq*std::cos(theta) * binormal + r2sq*std::sin(theta)*tangent + (1 - r2)*normal;
+            auto reflectDir = rayDir - normal*2*dot(normal, rayDir);
+
+            dir = 0.9f*reflectDir + 0.1f*diffuseDir;
+        }
 
         result = result + beta*lightRadiance;
         dir = normalize(dir);

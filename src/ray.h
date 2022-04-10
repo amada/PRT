@@ -99,6 +99,7 @@ struct RayPacketMask
 {
     SoaMask masks[RayPacket::kVectorCount];
 
+#if 0
     static RayPacketMask initAllTrue() {
         RayPacketMask result;
         for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
@@ -106,6 +107,7 @@ struct RayPacketMask
         }
         return result;
     }
+#endif
 
     RayPacketMask operator&(const RayPacketMask& other) const {
         RayPacketMask result;
@@ -113,6 +115,20 @@ struct RayPacketMask
             result.masks[i] = masks[i] & other.masks[i];
         }
         return result;
+    }
+
+    void computeAndSelf(uint32_t lane, const SoaMask& mask) {
+        masks[lane] = masks[lane] & mask;
+    }
+
+    void setAll(bool b) {
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
+            masks[i].setAll(b);
+        }
+    }
+
+    bool anyTrue(uint32_t lane) const {
+        return masks[lane].anyTrue();
     }
 
     bool anyTrue() const {

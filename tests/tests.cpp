@@ -47,8 +47,8 @@ void test_vecmath()
     }
 
     {
-        SoaMask m0 = SoaMask::initAllTrue();
-        SoaMask m1 = SoaMask::initAllTrue();
+        SoaMask m0; m0.setAll(true);
+        SoaMask m1; m1.setAll(true);
         m0 = m0.computeNot();
         m1 = m0 & m1;
         ASSERT_I_EQUAL(m0.getLane(0), 0);
@@ -95,9 +95,9 @@ void test_triangle_intersection()
         SoaVector3f o(0.5f, 0.5f, -1.0f);
         SoaVector3f d(0.0f, 0.0f, 1.0f);
 
-        auto mask = SoaMask::initAllTrue();
-        auto swapXZ = SoaMask::initAllFalse();
-        auto swapYZ = SoaMask::initAllFalse();
+        SoaMask mask; mask.setAll(false);
+        SoaMask swapXZ; swapXZ.setAll(false);
+        SoaMask swapYZ; swapYZ.setAll(false);
         auto intr = intersectTriangle(mask, o, d, swapXZ, swapYZ, v0, v1, v2);
 
         ASSERT_F_EQUAL(intr.t.getLane(0), 1.0f);

@@ -10,37 +10,6 @@
 namespace prt
 {
 
-template<typename T>
-struct SoaVar
-{
-    T lanes[SoaConstants::kLaneCount];
-};
-
-#if 0
-template<typename T>
-void selectS(SoaVar<T>& dst, T value, const SoaMask& mask)
-{
-    int32_t bits = mask.ballot();
-    while (bits) {
-        int32_t index = bitScanForward(bits);
-        dst.lanes[index] = value;
-        bits &= ~(1 << index);
-    }
-}
-
-template<typename T>
-void selectS(SoaVar<T>& dst, const SoaVar<T>& src, const SoaMask& mask)
-{
-    int32_t bits = mask.ballot();
-    while (bits) {
-        int32_t index = bitScanForward(bits);
-        dst.lanes[index] = src.lanes[index];
-        bits &= ~(1 << index);
-    }    
-}
-#endif
-
-
 
 class Bvh;
 

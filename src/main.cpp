@@ -78,7 +78,7 @@ void setupSanMiguelLowPoly(Scene& scene, Camera& camera)
     scene.setDirectionalLight(normalize(Vector3f(0.2f, 1.0f, 0.2f)), Vector3f(16.7f, 15.6f, 11.7f)); // sky.exr
     scene.add(sanMiguelBvh);
 
-    camera.create({10, 2.0, 10.2}, {0, 0.01, -1}, kWidth, kHeight); // San Miguel
+    camera.create({9, 2.0, 10.2}, {0.4, 0.1, -1}, kWidth, kHeight); // San Miguel
 }
 
 void raytrace_scene()

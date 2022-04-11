@@ -56,7 +56,7 @@ Cornell Box + Teapot @2048spp
 -----------------------------
 ![Cornell Box + Teapot](images/cornell_box_teapot.png)
 
-San Miguel @256spp
+San Miguel @128spp
 -----------------
 ![San Miguel](images/san_miguel.png)
 san-miguel-low-poly from https://casual-effects.com/data/

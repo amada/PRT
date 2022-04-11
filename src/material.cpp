@@ -21,6 +21,11 @@
 namespace prt
 {
 
+inline Vector3f degamma(const Vector3f& c)
+{
+    return Vector3f(pow(c.x, 2.2f), pow(c.y, 2.2f), pow(c.z, 2.2f));
+}
+
 inline void computeBilinearIndicesAndWeights(float* k, int32_t* indices, int32_t bytesPerPixel, const Vector2f& uv, uint32_t width, uint32_t height)
 {
     float s = uv.x - std::floor(uv.x);
@@ -239,7 +244,7 @@ Vector3f Material::sampleDiffuse(const Vector2f& uv) const
     auto color = diffuse;
     auto& tex = diffuseMap;
     if (tex.isValid()) {
-        color = color*tex.sample<Vector3f>(uv);
+        color = color*degamma(tex.sample<Vector3f>(uv));
     }
 
     return color;

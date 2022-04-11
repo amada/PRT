@@ -26,24 +26,46 @@ inline Vector3f degamma(const Vector3f& c)
     return Vector3f(pow(c.x, 2.2f), pow(c.y, 2.2f), pow(c.z, 2.2f));
 }
 
-inline void computeBilinearIndicesAndWeights(float* k, int32_t* indices, int32_t bytesPerPixel, const Vector2f& uv, uint32_t width, uint32_t height)
+inline void computeBilinearIndicesAndWeights(float* k, int32_t* indices, int32_t bytesPerPixel, const Vector2f& uv, int32_t width, int32_t height)
 {
     float s = uv.x - std::floor(uv.x);
     float t = 1.0f - (uv.y - std::floor(uv.y));
 
     int32_t x[2];
     x[0] = std::floor(s*(width - 1));
-    x[1] = std::ceil(s*(width - 1));
+    x[1] = std::min(x[0] + 1, width - 1);
     int32_t y[2];
     y[0] = std::floor(t*(height - 1));
-    y[1] = std::ceil(t*(height - 1));
+    y[1] = std::min(y[0] + 1, height - 1);
 
     indices[0] = bytesPerPixel*(x[0] + y[0]*width);
     indices[1] = bytesPerPixel*(x[1] + y[0]*width);
     indices[2] = bytesPerPixel*(x[0] + y[1]*width);
     indices[3] = bytesPerPixel*(x[1] + y[1]*width);
 
-//    float k[4];
+    k[0] = (1.0f - s)*(1.0f - t);
+    k[1] = s*(1.0f - t);
+    k[2] = (1.0f - s)*t;
+    k[3] = s*t;
+}
+
+inline void computeBilinearIndicesAndWeights(SoaFloat* k, SoaInt* indices, int32_t bytesPerPixel, const SoaVector2f& uv, int32_t width, int32_t height)
+{
+    auto s = uv.getX() - floor(uv.getX());
+    auto t = 1.0f - (uv.getY() - floor(uv.getY()));
+
+    SoaInt x[2];
+    x[0] = floor(s*(width - 1));
+    x[1] = min(x[0] + 1, (int32_t)width - 1);
+    SoaInt y[2];
+    y[0] = floor(t*(height - 1));
+    y[1] = min(y[0] + 1, (int32_t)height - 1);
+
+    indices[0] = bytesPerPixel*(x[0] + y[0]*width);
+    indices[1] = bytesPerPixel*(x[1] + y[0]*width);
+    indices[2] = bytesPerPixel*(x[0] + y[1]*width);
+    indices[3] = bytesPerPixel*(x[1] + y[1]*width);
+
     k[0] = (1.0f - s)*(1.0f - t);
     k[1] = s*(1.0f - t);
     k[2] = (1.0f - s)*t;
@@ -91,7 +113,7 @@ bool Texture::testAlpha(const Vector2f& uv) const
     float alpha = 0.0f;
     for (uint32_t i = 0; i < 4; i++) {
         uint32_t base = pindex[i];
-        alpha = alpha + k[i]*p[base + 3];
+        alpha = alpha + k[i]*p[base + kAlphaOffset];
     }
 
     return alpha > kAlphaThreashold;
@@ -99,26 +121,27 @@ bool Texture::testAlpha(const Vector2f& uv) const
 
 SoaMask Texture::testAlpha(const SoaMask& mask, const SoaVector2f& uv) const
 {
+    SoaFloat k[4];
+    SoaInt pindex[4];
+    computeBilinearIndicesAndWeights(k, pindex, bytesPerPixel, uv, width, height);
+
+    // do - while can be used here because mask shouldn't be zero
     uint32_t maskAlpha = 0;
-
-    auto s = uv.getX() - uv.getX().floor();
-    auto t = 1.0f - (uv.getY() - uv.getY().floor());
-    SoaInt x = s*(width - 1.0f);
-    SoaInt y = t*(height - 1.0f);
-    auto _bindex = 4*(x + y*width);
-
-    // TODO: do ~ while can be used because mask shouldn't be zero
     auto bits = mask.ballot();
-    while (bits) {
+    do {
         int32_t index = bitScanForward(bits);
-        auto bindex = _bindex.getLane(index);
+        // TODO: vectorize...
         const uint8_t* p = (uint8_t*)texels;
-
-        if (p[bindex + 3] > kAlphaThreashold)
+        float alpha = 0.0f;
+        for (uint32_t i = 0; i < 4; i++) {
+            uint32_t base = pindex[i].getLane(index);
+            alpha = alpha + k[i].getLane(index)*p[base + kAlphaOffset];
+        }
+        if (alpha > kAlphaThreashold)
             maskAlpha |= 1 << index;
 
         bits &= bits - 1;
-    }
+    } while(bits);
 
     return SoaMask(maskAlpha);
 }

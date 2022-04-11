@@ -98,6 +98,7 @@ private:
     uint32_t m_texcoordsCount = 0;
     
     bool m_hasVertexNormal = false;
+    bool m_hasTexcoord = false;
     uint32_t m_id = 0; // TODO mesh id
 };
 

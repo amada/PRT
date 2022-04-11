@@ -1109,6 +1109,15 @@ inline SoaInt operator*(int32_t i0, const SoaInt& i1) {
     return SoaInt(i0)*i1;
 }
 
+inline SoaInt min(const SoaInt& a, const SoaInt& b) {
+#if defined(R_NEON)
+    return vminq_s32(a.getRawValue(), b.getRawValue());
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    return AVX_INT(min_epi32)(a.getRawValue(), b.getRawValue());
+#endif
+}
+
+
 inline SoaFloat operator-(float f0, const SoaFloat& f1) {
     return SoaFloat(f0) - f1;
 }
@@ -1116,6 +1125,23 @@ inline SoaFloat operator-(float f0, const SoaFloat& f1) {
 inline SoaVector2f operator*(const SoaFloat& f, const Vector2f& v) {
     return SoaVector2f(v)*f;
 }
+
+inline SoaFloat min(const SoaFloat& a, const SoaFloat& b) {
+#if defined(R_NEON)
+    return vminq_f32(a.getRawValue(), b.getRawValue());
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    return AVX_INT(min_ps)(a.getRawValue(), b.getRawValue());
+#endif
+}
+
+inline SoaFloat floor(const SoaFloat& f) {
+#if defined(R_NEON)
+    return vrndmq_f32(f.getRawValue());
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    return AVX_INT(floor_ps)(f.getRawValue());
+#endif
+}
+
 
 inline SoaVector3f operator*(const SoaFloat& f, const Vector3f& v) {
     return f*SoaVector3f(v);

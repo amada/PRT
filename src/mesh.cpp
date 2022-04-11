@@ -32,6 +32,7 @@ Mesh::Mesh(Mesh&& m)
     m_vertexCount = m.m_vertexCount;
     m_materialCount = m.m_materialCount;
     m_hasVertexNormal = m.m_hasVertexNormal;
+    m_hasTexcoord = m.m_hasTexcoord;
 
     m.m_indices = nullptr;
     m.m_positions = nullptr;
@@ -57,6 +58,7 @@ Mesh& Mesh::operator=(Mesh&& m)
     m_materialCount = m.m_materialCount;
     m_texcoordsCount = m.m_texcoordsCount;
     m_hasVertexNormal = m.m_hasVertexNormal;
+    m_hasTexcoord = m.m_hasTexcoord;
 
     m.m_indices = nullptr;
     m.m_positions = nullptr;
@@ -153,6 +155,11 @@ void Mesh::loadObj(const char* path, const Material& mat)
         return;
     }
 
+    auto& attr = objReader.GetAttrib();
+
+    uint32_t vertexCount = attr.vertices.size()/3;
+    std::vector<Vector2f> tex; tex.resize(vertexCount);
+
     std::vector<uint32_t> indices;
     std::vector<uint32_t> texcoordIndices;
 
@@ -160,14 +167,15 @@ void Mesh::loadObj(const char* path, const Material& mat)
         // TODO: not taking care of normal and texture coords
         auto& srcIndices = s.mesh.indices;
         indices.reserve(indices.size() + srcIndices.size());
-        // TODO can be insert
         for (auto i: srcIndices) {
             indices.push_back(i.vertex_index);
-            texcoordIndices.push_back(i.texcoord_index);
+            texcoordIndices.push_back(i.vertex_index);
+            uint32_t b;
+            b = 2*i.texcoord_index;
+            tex[i.vertex_index] = Vector2f(attr.texcoords[b], attr.texcoords[b + 1]);        
         }
     }
 
-    auto& attr = objReader.GetAttrib();
     auto& srcVertices = attr.vertices;
     auto& srcTexcoords = attr.texcoords;
 
@@ -181,11 +189,13 @@ void Mesh::loadObj(const char* path, const Material& mat)
     memcpy(getPositionBuffer(), srcVertices.data(), srcVertices.size()*sizeof(float));
 
     m_texcoordsCount = srcTexcoords.size()/kFloatCountPerTexcoord;
-    memcpy(m_texcoordIndices, texcoordIndices.data(), texcoordIndices.size()*sizeof(uint32_t));
-    memcpy(m_texcoords, srcTexcoords.data(), srcTexcoords.size()*sizeof(float));
+    memcpy(m_texcoordIndices, texcoordIndices.data(), indices.size()*sizeof(uint32_t));
+    memcpy(m_texcoords, srcTexcoords.data(), vertexCount*sizeof(float));
 
     memset(getPrimMateialBuffer(), 0, primCount*sizeof(uint32_t));
     memcpy(getMaterialBuffer(), &mat, sizeof(Material));
+
+    m_hasTexcoord = true;
 
     logPrintf(LogLevel::kVerbose, "Finished loading '%s'\n", path);
 }
@@ -219,14 +229,9 @@ void Mesh::loadObj(const char* path)
     std::vector<uint32_t> indices;
     std::vector<uint32_t> texcoordIndices;
 
-    uint32_t vertexCount = 0;
-    for (auto s: objReader.GetShapes()) {
-        vertexCount = s.mesh.indices.size();
-    }
-
     auto& attr = objReader.GetAttrib();
 
-    vertexCount = attr.vertices.size()/3;
+    uint32_t vertexCount = attr.vertices.size()/3;
     std::vector<Vector2f> tex; tex.resize(vertexCount);
 //    std::vector<Vector3f> norm; norm.resize(vertexCount);
 
@@ -265,12 +270,14 @@ void Mesh::loadObj(const char* path)
     memcpy(getPositionBuffer(), srcVertices.data(), srcVertices.size()*sizeof(float));
 
     m_texcoordsCount = srcTexcoords.size()/kFloatCountPerTexcoord;
-    memcpy(m_texcoordIndices, texcoordIndices.data(), texcoordIndices.size()*sizeof(uint32_t));
+    memcpy(m_texcoordIndices, texcoordIndices.data(), indices.size()*sizeof(uint32_t));
 //    memcpy(m_texcoords, srcTexcoords.data(), srcTexcoords.size()*sizeof(Vector2f));
     memcpy(m_texcoords, tex.data(), tex.size()*sizeof(Vector2f));
 
     memcpy(getPrimMateialBuffer(), primMat.data(), primCount*sizeof(uint32_t));
     memcpy(getMaterialBuffer(), materials.data(), materials.size()*sizeof(Material));
+
+    m_hasTexcoord = true;
 
     logPrintf(LogLevel::kVerbose, "Finished loading '%s' prim=%u, vtx=%u, tex=%u\n", path, primCount, srcVertices.size()/3, srcTexcoords.size()/2);
 }
@@ -441,15 +448,22 @@ void Mesh::getSurfaceProperties(T& prop, const U& hit) const
 
 // TODO: remove indirection?
 // use 3 floats at once
-        v0 = getTexcoordIndex(indexBase + 0);
-        v1 = getTexcoordIndex(indexBase + 1);
-        v2 = getTexcoordIndex(indexBase + 2);
-        #if 1
-        const auto& t0 = getTexcoord(v0);
-        const auto& t1 = getTexcoord(v1);
-        const auto& t2 = getTexcoord(v2);
+        Vector2f t0;
+        Vector2f t1;
+        Vector2f t2;
+        if (m_hasTexcoord) {
+            v0 = getTexcoordIndex(indexBase + 0);
+            v1 = getTexcoordIndex(indexBase + 1);
+            v2 = getTexcoordIndex(indexBase + 2);
+            t0 = getTexcoord(v0);
+            t1 = getTexcoord(v1);
+            t2 = getTexcoord(v2);
+        } else {
+            t0 = Vector2f(0.0f, 0.0f);
+            t1 = Vector2f(1.0f, 0.0f);
+            t2 = Vector2f(0.0f, 1.0f);
+        }
         prop.uv = hit.i*t0 + hit.j*t1 + hit.k*t2;
-        #endif
 
         prop.normal = normal;
         prop.material = &getMaterial(getPrimToMaterial(hit.primId));

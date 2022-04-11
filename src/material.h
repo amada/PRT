@@ -51,6 +51,7 @@ struct Texture
     bool isAlphaTestRequired() const;
 private:
     const int32_t kAlphaThreashold = 127;
+    const int32_t kAlphaOffset = 3;
 
     void load(const char* path, bool bumpTexture = false);
 };

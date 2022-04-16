@@ -219,13 +219,12 @@ void Bvh::intersect(T& hitPacket, const R& packet) const
         bool hit;
 
         if constexpr (std::is_same<R, SingleRayPacket>::value) {
-            auto t = node->bbox.intersect(packet.ray.org, packet.ray.dir, packet.ray.invDir);
-            hit = (t != BBox::kNoHit && t < hitPacket.hit.t);
+            hit = node->bbox.intersect(packet.ray.org, packet.ray.dir, packet.ray.invDir, hitPacket.hit.t);
         } else if constexpr (std::is_same<R, RayPacket>::value) {
             // TODO: for loop packet.count
             for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
-                auto t = node->bbox.intersect(packet.rays[i].org, packet.rays[i].dir, packet.rays[i].invDir);
-                mask.computeAndSelf(i, t.notEquals(BBox::kNoHit).computeAnd(t.lessThan(hitPacket.hits[i].t)));
+                auto bbox_mask = node->bbox.intersect(packet.rays[i].org, packet.rays[i].dir, packet.rays[i].invDir, hitPacket.hits[i].t);
+                mask.computeAndSelf(i, bbox_mask);
             }
 
             hit = mask.anyTrue();
@@ -295,17 +294,7 @@ T Bvh::occluded(const R& ray) const
         auto node = nodes[current];
         auto mask = masks[current];
 
-        auto t = node->bbox.intersect(ray.org, ray.dir, ray.invDir);
-        bool hit;
-
-        if constexpr (std::is_same<R, Ray>::value) {
-            hit = (t != BBox::kNoHit && t < ray.maxT);
-        } else if constexpr (std::is_same<R, SoaRay>::value) {
-            auto maskBbox = t.notEquals(BBox::kNoHit).computeAnd(t.lessThan(ray.maxT));
-
-            mask = maskBbox & mask;
-            hit = mask.anyTrue();
-        }
+        bool hit = node->bbox.intersect(ray.org, ray.dir, ray.invDir, ray.maxT);
 
         if (!hit) {
             // Do nothing

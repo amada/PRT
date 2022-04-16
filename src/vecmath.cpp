@@ -57,6 +57,20 @@ float BBox::intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& 
     return max_t0;
 }
 
+bool BBox::intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir, float maxT) const
+{
+    auto tmp_t0 = (lower - org)*invDir;
+    auto tmp_t1 = (upper - org)*invDir;
+
+    auto t0 = min(tmp_t0, tmp_t1);
+    auto t1 = max(tmp_t0, tmp_t1);
+
+    auto max_t0 = std::max(t0.x, std::max(t0.y, t0.z));
+    auto min_t1 = std::min(t1.x, std::min(t1.y, t1.z));
+
+    return (min_t1 >= max_t0 && max_t0 < maxT);
+}
+
 
 SoaFloat BBox::intersect(const SoaVector3f& org, const SoaVector3f& dir, const SoaVector3f& invDir) const
 {
@@ -78,6 +92,30 @@ SoaFloat BBox::intersect(const SoaVector3f& org, const SoaVector3f& dir, const S
     auto temp = select(max_t0, 0.0f, max_t0.lessThan(0.0f));
 
     return select(r, temp, mask);
+}
+
+SoaMask BBox::intersect(const SoaVector3f& org, const SoaVector3f& dir, const SoaVector3f& invDir, const SoaFloat& maxT) const
+{
+    auto tmp_t0 = (SoaVector3f(lower) - org)*invDir;
+    auto tmp_t1 = (SoaVector3f(upper) - org)*invDir;
+
+    auto t0 = tmp_t0.min(tmp_t1);
+    auto t1 = tmp_t0.max(tmp_t1);
+
+    auto max_t0 = t0.maximumElement();
+    auto min_t1 = t1.minimumElement();
+
+    auto mask = min_t1.greaterThanOrEqual(max_t0);
+
+    return max_t0.lessThan(maxT) & mask;
+}
+
+
+bool BBox::contains(const Vector3f& p) const
+{
+    return lower.x <= p.x && p.x <= upper.x &&
+           lower.y <= p.y && p.y <= upper.y &&
+           lower.z <= p.z && p.z <= upper.z;
 }
 
 void BBox::grow(const BBox& bbox)

@@ -90,8 +90,10 @@ inline int32_t _neon_movemask(maskvec_t m) {
 }
 
 inline bool _neon_anytrue(maskvec_t m) {
-    uint32x2_t temp = vorr_u32(vget_low_u32(m), vget_high_u32(m));
-    return vget_lane_u32(vpmax_u32(temp, temp), 0);
+//    uint32x2_t temp = vorr_u32(vget_low_u32(m), vget_high_u32(m));
+//    return vget_lane_u32(vpmax_u32(temp, temp), 0);
+
+    return vaddvq_u32(m) != 0; // Should be safe as long as mask is used via vecmath functions
 }
 
 template<typename V, typename T>
@@ -995,7 +997,12 @@ struct BBox
     static constexpr float kNoHit = -1.0f;
 
     float intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir) const;
+    bool intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir, float maxT) const;
+
     SoaFloat intersect(const SoaVector3f& org, const SoaVector3f& dir, const SoaVector3f& invDir) const;
+    SoaMask intersect(const SoaVector3f& org, const SoaVector3f& dir, const SoaVector3f& invDir, const SoaFloat& maxT) const;
+
+    bool contains(const Vector3f& p) const;
 
     void print() const;
 

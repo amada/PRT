@@ -92,16 +92,15 @@ void test_triangle_intersection()
         SoaVector3f v0(0.0f, 0.0f, 0.0f);
         SoaVector3f v1(1.0f, 0.0f, 0.0f);
         SoaVector3f v2(0.0f, 1.0f, 0.0f);
-        SoaVector3f o(0.5f, 0.5f, -1.0f);
+        SoaVector3f o(0.4f, 0.4f, -1.0f);
         SoaVector3f d(0.0f, 0.0f, 1.0f);
 
-        SoaMask mask; mask.setAll(false);
+        SoaMask mask; mask.setAll(true);
         SoaMask swapXZ; swapXZ.setAll(false);
         SoaMask swapYZ; swapYZ.setAll(false);
         auto intr = intersectTriangle(mask, o, d, swapXZ, swapYZ, v0, v1, v2);
 
         ASSERT_F_EQUAL(intr.t.getLane(0), 1.0f);
-//        ASSERT_F_EQUAL(t.getLane(0), 0.5f);
     }
 
 

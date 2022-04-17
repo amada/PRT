@@ -190,6 +190,8 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
 
     return result;
 }
+
+#if 0
 //Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir, const Vector3f& pos, const Vector3f& normal, const Material* material, uint32_t depth)
 Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir, const Vector3f& pos, const SurfaceProperties& prop, uint32_t depth)
 {
@@ -311,5 +313,6 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
 
     return resultColor;
 }
+#endif
 
 } // namespace prt

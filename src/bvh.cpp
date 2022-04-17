@@ -48,60 +48,71 @@ void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const M
     context.nodeCount += kChildCount;
 
     const auto extent = bbox.upper - bbox.lower;
-    const uint32_t dim = (bbox.upper - bbox.lower).GetLongestElement();
-    const float splitExtent = extent.v[dim] == 0.0 ? 0.0001 : extent.v[dim];
-    const float lowerPos = bbox.lower.v[dim];
-
     const uint32_t kBucketCount = 14;
 
-    struct Bucket {
-        uint32_t count = 0;
-        BBox bounds = BBox::init();
-    };
-
-    Bucket buckets[kBucketCount];
-
-    for (int32_t i = start; i <= end; i++) {
-        Vector3f temp(0.0f);
-        uint32_t indexBase = Mesh::kVertexCountPerPrim*primRemapping[i];
-        auto primBounds = BBox::init();
-        for (int32_t j = 0; j < Mesh::kVertexCountPerPrim; j++) {
-            auto v = mesh.getPosition(mesh.getIndex(indexBase + j));
-            temp = temp + v;
-            primBounds.grow(v);
-        }
-        temp = 1.0f/Mesh::kVertexCountPerPrim*temp;
-
-        int32_t b = kBucketCount*(temp.v[dim] - lowerPos)/splitExtent;
-        if (b == kBucketCount) b = b - 1;
-
-        buckets[b].count++;
-        buckets[b].bounds.grow(primBounds);
-    }
-
     float lowestCost = std::numeric_limits<float>::max();
+    uint32_t lowestDim = 0;
     int32_t lowestCostSplit = -1;
-    for (uint32_t i = 0; i < kBucketCount - 1; i++) {
-        uint32_t countLeft = 0;
-        BBox boundsLeft = BBox::init();
-        for (uint32_t j = 0; j <= i; j++) {
-            countLeft += buckets[j].count;
-            boundsLeft.grow(buckets[j].bounds);
+
+    // Check cost for every dimension for SAH
+    for (uint32_t dim = 0; dim < 3; dim++) {
+        const float splitExtent = extent.v[dim] == 0.0 ? 0.0001 : extent.v[dim]; // Maybe skip this dim
+        const float lowerPos = bbox.lower.v[dim];
+        struct Bucket {
+            uint32_t count = 0;
+            BBox bounds = BBox::init();
+        };
+
+        Bucket buckets[kBucketCount];
+
+        // Calculate computation cost for each bucket
+        for (int32_t i = start; i <= end; i++) {
+            Vector3f temp(0.0f);
+            uint32_t indexBase = Mesh::kVertexCountPerPrim*primRemapping[i];
+            auto primBounds = BBox::init();
+            for (int32_t j = 0; j < Mesh::kVertexCountPerPrim; j++) {
+                auto v = mesh.getPosition(mesh.getIndex(indexBase + j));
+                temp = temp + v;
+                primBounds.grow(v);
+            }
+            temp = 1.0f/Mesh::kVertexCountPerPrim*temp;
+
+            int32_t b = kBucketCount*(temp.v[dim] - lowerPos)/splitExtent;
+            if (b >= kBucketCount) b = kBucketCount - 1;
+            if (b < 0) { b = 0; }
+
+            buckets[b].count++;
+            buckets[b].bounds.grow(primBounds);
         }
 
-        uint32_t countRight = 0;
-        BBox boundsRight = BBox::init();
-        for (uint32_t j = i + 1; j < kBucketCount; j++) {
-            countRight += buckets[j].count;
-            boundsRight.grow(buckets[j].bounds);
-        }
+        // Find the lowest cost split
+        for (uint32_t i = 0; i < kBucketCount - 1; i++) {
+            uint32_t countLeft = 0;
+            BBox boundsLeft = BBox::init();
+            for (uint32_t j = 0; j <= i; j++) {
+                countLeft += buckets[j].count;
+                boundsLeft.grow(buckets[j].bounds);
+            }
 
-        float cost = 0.125f + (countLeft*boundsLeft.surfaceArea() + countRight*boundsRight.surfaceArea());
-        if (lowestCost > cost) {
-            lowestCost = cost;
-            lowestCostSplit = i;
+            uint32_t countRight = 0;
+            BBox boundsRight = BBox::init();
+            for (uint32_t j = i + 1; j < kBucketCount; j++) {
+                countRight += buckets[j].count;
+                boundsRight.grow(buckets[j].bounds);
+            }
+
+            float cost = 0.125f + (countLeft*boundsLeft.surfaceArea() + countRight*boundsRight.surfaceArea());
+            if (lowestCost > cost) {
+                lowestDim = dim;
+                lowestCost = cost;
+                lowestCostSplit = i;
+            }
         }
     }
+
+    const uint32_t dim = lowestDim;
+    const float splitExtent = extent.v[dim] == 0.0 ? 0.0001 : extent.v[dim];
+    const float lowerPos = bbox.lower.v[dim];
 
     float splitPos = lowerPos + (lowestCostSplit + 1)*splitExtent/kBucketCount;
 

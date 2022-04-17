@@ -14,7 +14,7 @@ public:
     void init();
 
     template<typename T, typename R>
-    void intersect(T& intr, const R& packet) const;
+    void intersect(T& intr, const R& packet, const TraverseStackCache* stackCache = nullptr) const;
 
     template<typename T, typename R>
     T occluded(const R& packet) const;
@@ -33,6 +33,11 @@ public:
 
     DirectionalLight getDirectionalLight() const {
         return m_directionalLight;
+    }
+
+    void createStackCache(TraverseStackCache& stackCache, const Vector3f& pos, const Vector3f& dir) const {
+        PRT_ASSERT(m_bvh.size() == 1); // TODO: currently only support one BVH
+        m_bvh[0]->createStackCache(stackCache, pos, dir);
     }
 
 private:

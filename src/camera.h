@@ -39,6 +39,10 @@ public:
     RayPacket GenerateJitteredRayPacket(Random& rand, uint32_t x, uint32_t y) const;
 //    SoaRay GenerateJitteredSoaRay(Random& rand, uint32_t x, uint32_t y) const;
 
+    const Vector3f& getPosition() const { return m_pos; }
+    const Vector3f& getDirection() const { return m_dir; }
+
+private:
     Vector3f m_pos;
     Vector3f m_dir;
     Vector3f m_up;

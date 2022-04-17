@@ -30,7 +30,7 @@ void Scene::getSurfaceProperties(T& properties, const U& hit) const
 template void Scene::getSurfaceProperties<SurfaceProperties, RayHit>(SurfaceProperties&, const RayHit&) const;
 
 template<typename T, typename R>
-void Scene::intersect(T& hitPacket, const R& packet) const
+void Scene::intersect(T& hitPacket, const R& packet, const TraverseStackCache* stackCache) const
 {
     memset(&hitPacket, 0, sizeof(hitPacket));
 
@@ -41,14 +41,14 @@ void Scene::intersect(T& hitPacket, const R& packet) const
     for (auto &bvh : m_bvh) {
         // TODO ray transform per BVH
 
-        bvh->intersect(hitPacket, packet);
+        bvh->intersect(hitPacket, packet, stackCache);
     }
 
     hitPacket.setMissForMaxT(packet);
 }
 
-template void Scene::intersect<SingleRayHitPacket, SingleRayPacket>(SingleRayHitPacket&, const SingleRayPacket&) const;
-template void Scene::intersect<RayHitPacket, RayPacket>(RayHitPacket&, const RayPacket&) const;
+template void Scene::intersect<SingleRayHitPacket, SingleRayPacket>(SingleRayHitPacket&, const SingleRayPacket&, const TraverseStackCache*) const;
+template void Scene::intersect<RayHitPacket, RayPacket>(RayHitPacket&, const RayPacket&, const TraverseStackCache*) const;
 
 
 template<typename T, typename R>

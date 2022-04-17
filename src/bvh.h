@@ -47,6 +47,13 @@ struct LinearBvhNode
     int16_t splitAxis; // Axis splitting BVH node
 };
 
+struct TraverseStackCache
+{
+    static const int32_t kNodeStackCapacity = 64;
+    LinearBvhNode* nodes[kNodeStackCapacity];
+    int32_t size;
+};
+
 
 class Bvh
 {
@@ -58,10 +65,12 @@ public:
     Bvh() = default;
 
     template<typename T, typename U>
-    void intersect(T& result, const U& ray) const;
+    void intersect(T& result, const U& ray, const TraverseStackCache* stackCache) const;
 
     template<typename T, typename R>
     T occluded(const R& ray) const;
+
+    void createStackCache(TraverseStackCache& stackCache, const Vector3f& pos, const Vector3f& dir) const;
 
     void build(Mesh&& mesh);
 private:

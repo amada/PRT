@@ -16,9 +16,13 @@ namespace prt
 
 void PathTracer::TraceBlock(Image& image, uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, const Scene& scene, const Camera& camera, uint32_t samples)
 {
+    TraverseStackCache stackCache;
+    scene.createStackCache(stackCache, camera.getPosition(), camera.getDirection());
+
     for (uint32_t y = y0; y <= y1; y++) {
         for (uint32_t x = x0; x <= x1; x++) {
-            Vector3f color = Trace(camera, scene, x, y, samples);
+//            Vector3f color = SoaTrace(camera, scene, x, y, samples, &stackCache);
+            Vector3f color = SoaTrace(camera, scene, x, y, samples, nullptr);
 
             color = color/samples;
 
@@ -29,7 +33,7 @@ void PathTracer::TraceBlock(Image& image, uint32_t x0, uint32_t y0, uint32_t x1,
 
 Vector3f PathTracer::Trace(const Camera& camera, const Scene& scene, uint32_t x, uint32_t y, uint32_t samples)
 {
-    return SoaTrace(camera, scene, x, y, samples);
+//    return SoaTrace(camera, scene, x, y, samples);
     Vector3f color(0);
 
     for (uint32_t i = 0; i < samples; i++) {
@@ -49,7 +53,7 @@ Vector3f PathTracer::Trace(const Camera& camera, const Scene& scene, uint32_t x,
     return color;
 }
 
-Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t x, uint32_t y, uint32_t samples)
+Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t x, uint32_t y, uint32_t samples, const TraverseStackCache* stackCache)
 {
     Vector3f color(0);
 
@@ -57,7 +61,7 @@ Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t
         auto packet = camera.GenerateJitteredRayPacket(m_rand, x, y);
 
         RayHitPacket hitPacket;
-        scene.intersect(hitPacket, packet);
+        scene.intersect(hitPacket, packet, stackCache);
 #ifdef PRT_ENABLE_STATS
         m_stats.merge(hitPacket.stats);
 #endif

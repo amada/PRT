@@ -194,7 +194,7 @@ void Bvh::buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode
 }
 
 template<typename T, typename R>
-void Bvh::intersect(T& hitPacket, const R& packet) const
+void Bvh::intersect(T& hitPacket, const R& packet, const TraverseStackCache* stackCache) const
 {
     const uint32_t kStackSize = 64;
     int32_t current = 0;
@@ -210,6 +210,13 @@ void Bvh::intersect(T& hitPacket, const R& packet) const
         masks[current].setAll(true);
         for (uint32_t i = 0; i < 3; i++)
             reverseStackOrder[i] = packet.avgDir.v[i] < 0.0f;
+    }
+
+    if (stackCache) {
+        memcpy(nodes, stackCache->nodes, sizeof(LinearBvhNode*)*stackCache->size);
+        current = stackCache->size - 1;
+        for (uint32_t i = 0; i < stackCache->size; i++)
+            masks[i].setAll(true);
     }
 
     do {
@@ -269,8 +276,8 @@ void Bvh::intersect(T& hitPacket, const R& packet) const
     } while (current >= 0);
 }
 
-template void Bvh::intersect<SingleRayHitPacket, SingleRayPacket>(SingleRayHitPacket&, const SingleRayPacket&) const;
-template void Bvh::intersect<RayHitPacket, RayPacket>(RayHitPacket&, const RayPacket&) const;
+template void Bvh::intersect<SingleRayHitPacket, SingleRayPacket>(SingleRayHitPacket&, const SingleRayPacket&, const TraverseStackCache*) const;
+template void Bvh::intersect<RayHitPacket, RayPacket>(RayHitPacket&, const RayPacket&, const TraverseStackCache*) const;
 
 
 template<typename T, typename R>
@@ -335,6 +342,62 @@ T Bvh::occluded(const R& ray) const
 
     return false;
 }
+
+void Bvh::createStackCache(TraverseStackCache& stackCache, const Vector3f& pos, const Vector3f& dir) const
+{
+    int32_t current = 0;
+    LinearBvhNode* nodes[TraverseStackCache::kNodeStackCapacity + TraverseStackCache::kNodeStackCapacity/2 + 1];
+    nodes[current] = &m_nodes[0];
+
+    bool reverseStackOrder[3];
+    for (uint32_t i = 0; i < 3; i++)
+        reverseStackOrder[i] = dir.v[i] < 0.0f;
+
+    int32_t nodeCount = 1;
+
+    do {
+        auto node = nodes[current];
+
+        auto hit = node->bbox.contains(pos);
+
+        if (!hit) {
+            // Do nothing
+        } else if (node->primCount == LinearBvhNode::kInternalNode) {
+            nodes[current] = nullptr;
+#if 0
+            if (reverseStackOrder[node->splitAxis]) {
+                nodes[nodeCount + 0] = node + 1;
+                nodes[nodeCount + 1] = &m_nodes[node->primOrSecondNodeIndex];
+            } else {
+                nodes[nodeCount + 0] = &m_nodes[node->primOrSecondNodeIndex];
+                nodes[nodeCount + 1] = node + 1;
+            }
+#else
+            nodes[nodeCount + 0] = node + 1;
+            nodes[nodeCount + 1] = &m_nodes[node->primOrSecondNodeIndex];
+#endif
+            nodeCount += 2;
+
+            if ((nodeCount + 2) > sizeof(nodes)/sizeof(nodes[0])) {
+                break;
+            }
+        }
+
+        current++;
+    } while (current < nodeCount);
+
+    // Remove null node pointers
+    stackCache.size = 0;
+    for (uint32_t i = 0; i < nodeCount; i++) {
+        if (nodes[i] != nullptr) {
+            stackCache.nodes[stackCache.size] = nodes[i];
+            stackCache.size++;
+        }
+    }
+
+    PRT_ASSERT(stackCache.size <= TraverseStackCache::kNodeStackCapacity);
+}
+
 
 template bool Bvh::occluded<bool, Ray>(const Ray&) const;
 

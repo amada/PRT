@@ -5,6 +5,17 @@ namespace prt
 
 void ThreadPool::create(uint32_t threadCount)
 {
+    if (threadCount == 0) {
+        uint32_t cpuThreads = std::thread::hardware_concurrency();
+        if (cpuThreads == 0) {
+            cpuThreads = 8;
+            printf("Number of CPU threads is unknown; use %u threads\n", cpuThreads);
+        } else {
+            printf("%u CPU threads are available\n", cpuThreads);
+        }
+        threadCount = cpuThreads;
+    }
+
     m_alive = true;
     m_threadCount = threadCount;
     m_workers = new std::thread[threadCount];

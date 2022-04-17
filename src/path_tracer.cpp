@@ -16,9 +16,10 @@ namespace prt
 
 void PathTracer::TraceBlock(Image& image, uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, const Scene& scene, const Camera& camera, uint32_t samples)
 {
+#if 0
     TraverseStackCache stackCache;
     scene.createStackCache(stackCache, camera.getPosition(), camera.getDirection());
-
+#endif
     for (uint32_t y = y0; y <= y1; y++) {
         for (uint32_t x = x0; x <= x1; x++) {
 //            Vector3f color = SoaTrace(camera, scene, x, y, samples, &stackCache);

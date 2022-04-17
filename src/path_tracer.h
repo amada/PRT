@@ -32,7 +32,7 @@ private:
 
     // debug
     Stats m_stats;
-    bool m_verbose = false;
+    //bool m_verbose = false;
 };
 
 } // namespace prt

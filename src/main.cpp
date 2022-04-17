@@ -96,7 +96,7 @@ void raytrace_scene()
 //    setupSanMiguelLowPoly(scene, camera);
 
     auto start = std::chrono::steady_clock::now();
-    threadPool.create(10);
+    threadPool.create(0);
 
     const uint32_t kTileWidth = 16;
     const uint32_t kTileHeight = 16;

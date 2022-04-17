@@ -1,5 +1,7 @@
 #pragma once
 
+#include "prt.h"
+#include "stats.h"
 #include "vecmath.h"
 
 namespace prt
@@ -163,6 +165,10 @@ struct SingleRayHitPacket
 {
     RayHit hit;
 
+#ifdef PRT_ENABLE_STATS
+    Stats stats;
+#endif
+
     void setMaxT(const SingleRayPacket& packet) {
         hit.t = packet.ray.maxT;
     }
@@ -175,7 +181,11 @@ struct SingleRayHitPacket
 
 struct RayHitPacket
 {
-     SoaRayHit hits[RayPacket::kVectorCount];
+    SoaRayHit hits[RayPacket::kVectorCount];
+
+#ifdef PRT_ENABLE_STATS
+    Stats stats;
+#endif
 
     void setMaxT(const RayPacket& packet) {
         for (uint32_t i = 0; i < RayPacket::kVectorCount; i++)
@@ -190,6 +200,14 @@ struct RayHitPacket
     }        
 };
 
+struct SingleRayOccludedPacket
+{
+    bool occluded;
+
+#ifdef PRT_ENABLE_STATS
+    Stats stats;
+#endif
+};
 
 
 } // namespace prt

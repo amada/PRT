@@ -58,6 +58,9 @@ Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t
 
         RayHitPacket hitPacket;
         scene.intersect(hitPacket, packet);
+#ifdef PRT_ENABLE_STATS
+        m_stats.merge(hitPacket.stats);
+#endif
 
         for (uint32_t v = 0; v < RayPacket::kVectorCount; v++) {
             const auto& hit = hitPacket.hits[v];

@@ -213,6 +213,9 @@ void Bvh::intersect(T& hitPacket, const R& packet) const
     }
 
     do {
+#ifdef PRT_ENABLE_STATS
+        hitPacket.stats.nodesTraversed++;
+#endif
         auto node = nodes[current];
         auto mask = masks[current];
 
@@ -230,35 +233,34 @@ void Bvh::intersect(T& hitPacket, const R& packet) const
             hit = mask.anyTrue();
         }
 
+        int16_t primCount = node->primCount;
+
         if (!hit) {
             // Do nothing
-        } else if (node->primCount == LinearBvhNode::kInternalNode) {
-            if (hit) {
-                // Visit closer child first
-                if (reverseStackOrder[node->splitAxis]) {
-                    nodes[current + 0] = node + 1;
-                    nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
-                } else {
-                    nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
-                    nodes[current + 1] = node + 1;
-                }
-                if constexpr (std::is_same<R, RayPacket>::value) {
-                    masks[current + 0] = mask;
-                    masks[current + 1] = mask;
-                }
-
-                current += 2;
-
-                if (current >= kStackSize) {
-                    __builtin_trap();
-                }
+        } else if (primCount == LinearBvhNode::kInternalNode) {
+            // Visit closer child first
+            if (reverseStackOrder[node->splitAxis]) {
+                nodes[current + 0] = node + 1;
+                nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
+            } else {
+                nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
+                nodes[current + 1] = node + 1;
             }
+            if constexpr (std::is_same<R, RayPacket>::value) {
+                masks[current + 0] = mask;
+                masks[current + 1] = mask;
+            }
+
+            current += 2;
+
+            PRT_ASSERT(current < kStackSize);
         } else {
             auto& m = m_mesh;
 
 // TODO: give all primIndex to m.intersect? rather than loop?
-            for (int32_t i = 0; i < node->primCount; i++) {
-                uint32_t primIndex = m_primRemapping[node->primOrSecondNodeIndex + i];
+            int32_t primIndexPreMap = node->primOrSecondNodeIndex;
+            for (int32_t i = 0; i < primCount; i++) {
+                uint32_t primIndex = m_primRemapping[primIndexPreMap + i];
                 m.intersect(hitPacket, mask, packet, primIndex);
             }
         }
@@ -296,34 +298,32 @@ T Bvh::occluded(const R& ray) const
 
         bool hit = node->bbox.intersect(ray.org, ray.dir, ray.invDir, ray.maxT);
 
+        int16_t primCount = node->primCount;
         if (!hit) {
             // Do nothing
-        } else if (node->primCount == LinearBvhNode::kInternalNode) {
-            if (hit) {
-                // Visit closer child first
-                if (reverseStackOrder[node->splitAxis]) {
-                    nodes[current + 0] = node + 1;
-                    nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
-                } else {
-                    nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
-                    nodes[current + 1] = node + 1;
-                } 
-                if constexpr (std::is_same<R, SoaRay>::value) {
-                    masks[current + 0] = mask;
-                    masks[current + 1] = mask;
-                }
-
-                current += 2;
-
-                if (current >= kStackSize) {
-                    __builtin_trap();
-                }
+        } else if (primCount == LinearBvhNode::kInternalNode) {
+            // Visit closer child first
+            if (reverseStackOrder[node->splitAxis]) {
+                nodes[current + 0] = node + 1;
+                nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
+            } else {
+                nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
+                nodes[current + 1] = node + 1;
             }
+            if constexpr (std::is_same<R, SoaRay>::value) {
+                masks[current + 0] = mask;
+                masks[current + 1] = mask;
+            }
+
+            current += 2;
+
+            PRT_ASSERT(current < kStackSize);
         } else {
             auto& m = m_mesh;
 
-            for (int32_t i = 0; i < node->primCount; i++) {
-                uint32_t primIndex = m_primRemapping[node->primOrSecondNodeIndex + i];
+            int32_t primIndexPreMap = node->primOrSecondNodeIndex;
+            for (int32_t i = 0; i < primCount; i++) {
+                uint32_t primIndex = m_primRemapping[primIndexPreMap + i];
 
                 if (m.occluded(ray, primIndex))
                     return true;

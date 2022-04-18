@@ -33,14 +33,20 @@ namespace prt
 using floatvec_t = float32x4_t;
 using intvec_t = int32x4_t;
 using maskvec_t = uint32x4_t;
+
+using floatvec4_t = float32x4_t;
 #elif defined(R_AVX4L)
 using floatvec_t = __m128;
 using intvec_t = __m128i;
 using maskvec_t = __m128;
+
+using floatvec4_t = __m128;
 #elif defined(R_AVX8L)
 using floatvec_t = __m256;
 using intvec_t = __m256i;
 using maskvec_t = __m256;
+
+using floatvec4_t = __m128;
 #endif
 
 class SoaConstants {
@@ -93,7 +99,7 @@ inline bool _neon_anytrue(maskvec_t m) {
 //    uint32x2_t temp = vorr_u32(vget_low_u32(m), vget_high_u32(m));
 //    return vget_lane_u32(vpmax_u32(temp, temp), 0);
 
-    return vaddvq_u32(m) != 0; // Should be safe as long as mask is used via vecmath functions
+    return vmaxvq_u32(m) != 0; // Should be safe as long as mask is used via vecmath functions
 }
 
 template<typename V, typename T>
@@ -1206,6 +1212,81 @@ inline SoaInt select(const SoaInt& i0, const SoaInt& i1, const SoaMask& mask)
 #endif
 }
 
+inline float reduceMax4(floatvec4_t a)
+{
+#if defined(R_NEON)
+    return vmaxvq_f32(a);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    auto temp = _mm_max_ps(a, _mm_shuffle_ps(a, a, _MM_SHUFFLE(0, 0, 3, 2)));
+    a = _mm_max_ps(temp, _mm_shuffle_ps(temp, temp, _MM_SHUFFLE(0, 0, 0, 1)));
+    return _mm_cvtss_f32(a);
+#endif
+}
+
+inline float reduceMin4(floatvec4_t a)
+{
+#if defined(R_NEON)
+    return vminvq_f32(a);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    auto temp = _mm_min_ps(a, _mm_shuffle_ps(a, a, _MM_SHUFFLE(0, 0, 3, 2)));
+    a = _mm_min_ps(temp, _mm_shuffle_ps(temp, temp, _MM_SHUFFLE(0, 0, 0, 1)));
+    return _mm_cvtss_f32(a);
+#endif
+}
+
+inline floatvec4_t max(floatvec4_t a, floatvec4_t b)
+{
+#if defined(R_NEON)
+    return vmaxq_f32(a, b);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    return _mm_max_ps(a, b);
+#endif
+}
+
+inline floatvec4_t min(floatvec4_t a, floatvec4_t b)
+{
+#if defined(R_NEON)
+    return vminq_f32(a, b);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    return _mm_min_ps(a, b);
+#endif
+}
+
+inline floatvec4_t add(floatvec4_t a, floatvec4_t b)
+{
+#if defined(R_NEON)
+    return vaddq_f32(a, b);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    return _mm_add_ps(a, b);
+#endif
+}
+
+inline floatvec4_t sub(floatvec4_t a, floatvec4_t b)
+{
+#if defined(R_NEON)
+    return vsubq_f32(a, b);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    return _mm_sub_ps(a, b);
+#endif
+}
+
+inline floatvec4_t mul(floatvec4_t a, floatvec4_t b)
+{
+#if defined(R_NEON)
+    return vmulq_f32(a, b);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    return _mm_mul_ps(a, b);
+#endif
+}
+
+inline floatvec4_t floatvec4(float x, float y, float z, float w)
+{
+#if defined(R_NEON)
+    return {x, y, z, w};
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    return _mm_set_ps(w, z, y, x);
+#endif
+}
 
 /*
 inline SoaVector3f select(const SoaVector3f& v0, const SoaVector3f& v1, const SoaMask& mask)

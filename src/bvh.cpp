@@ -48,7 +48,7 @@ void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const M
     context.nodeCount += kChildCount;
 
     const auto extent = bbox.upper - bbox.lower;
-    const uint32_t kBucketCount = 14;
+    const uint32_t kBucketCount = 32;
 
     float lowestCost = std::numeric_limits<float>::max();
     uint32_t lowestDim = 0;
@@ -274,7 +274,9 @@ void Bvh::intersect(T& hitPacket, const R& packet, const TraverseStackCache* sta
             PRT_ASSERT(current < kStackSize);
         } else {
             auto& m = m_mesh;
-
+#ifdef PRT_ENABLE_STATS
+            hitPacket.stats.primsTraversed += primCount;
+#endif
 // TODO: give all primIndex to m.intersect? rather than loop?
             int32_t primIndexPreMap = node->primOrSecondNodeIndex;
             for (int32_t i = 0; i < primCount; i++) {

@@ -60,10 +60,10 @@ float BBox::intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& 
 bool BBox::intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir, float maxT) const
 {
 #if 1
-    auto vlower = floatvec4(lower.x, lower.y, lower.z, -1.0f);
-    auto vupper = floatvec4(upper.x, upper.y, upper.z, 1.0f);
+    auto vlower = floatvec4(lower.x, lower.y, lower.z, std::numeric_limits<float>::lowest());
+    auto vupper = floatvec4(upper.x, upper.y, upper.z, maxT);
     auto vorg = floatvec4(org.x, org.y, org.z, 0.0f);
-    auto vinvDir = floatvec4(invDir.x, invDir.y, invDir.z, 1.0f/0.0f);
+    auto vinvDir = floatvec4(invDir.x, invDir.y, invDir.z, 1.0f);
 
     auto tmp_t0 = mul(sub(vlower, vorg), vinvDir);
     auto tmp_t1 = mul(sub(vupper, vorg), vinvDir);
@@ -73,6 +73,8 @@ bool BBox::intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& i
 
     auto max_t0 = reduceMax4(t0);
     auto min_t1 = reduceMin4(t1);
+
+    return min_t1 > max_t0;
 #else
     auto tmp_t0 = (lower - org)*invDir;
     auto tmp_t1 = (upper - org)*invDir;
@@ -82,9 +84,9 @@ bool BBox::intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& i
 
     auto max_t0 = std::max(t0.x, std::max(t0.y, t0.z));
     auto min_t1 = std::min(t1.x, std::min(t1.y, t1.z));
-#endif
 
-    return (min_t1 >= max_t0 && max_t0 < maxT);
+    return (min_t1 > max_t0 && max_t0 < maxT);
+#endif
 }
 
 

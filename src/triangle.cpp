@@ -70,7 +70,7 @@ TriangleIntersection intersectTriangle(
         return TriangleIntersection(TriangleIntersection::kNoIntersection);
     }
 
-    auto inv_det = 1.0/det;
+    auto inv_det = 1.0f/det;
 
     auto t_scaled = (e0*v0z + e1*v1z + e2*v2z)*inv_dz;
 

@@ -58,6 +58,10 @@ Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t
 {
     Vector3f color(0);
 
+#ifdef PRT_ENABLE_STATS
+    m_stats.raysTraced += samples;
+#endif
+
     for (uint32_t i = 0; i < samples/RayPacket::kSize; i++) {
         auto packet = camera.GenerateJitteredRayPacket(m_rand, x, y);
 
@@ -141,7 +145,9 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
                 shadowRay.org = pos;
                 shadowRay.dir = light.dir;
                 shadowRay.prepare();
-
+#ifdef PRT_ENABLE_STATS
+                m_stats.raysTraced++;;
+#endif
                 if (!scene.occluded<bool, Ray>(shadowRay)) {
                     lightRadiance = light.intensity*std::max(dot(light.dir, normal), 0.0f)/kPi;
                 }
@@ -171,6 +177,9 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
         ray.dir = dir;
         ray.prepare();
 
+#ifdef PRT_ENABLE_STATS
+    m_stats.raysTraced++;;
+#endif
         SingleRayHitPacket hitPacket;
         scene.intersect(hitPacket, SingleRayPacket(ray));
 

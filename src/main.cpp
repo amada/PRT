@@ -102,8 +102,9 @@ void raytrace_scene()
     const uint32_t kTileHeight = 16;
     const uint32_t kSamples = 32;
 
-    std::atomic<uint64_t> totalNodesTraversed(0);
-    std::atomic<uint64_t> totalPrimsTraversed(0);
+    TotalStats totalStats;
+    totalStats.clear();
+
     uint32_t totalTasks = 0;
 
     for (uint32_t y = 0; y < kHeight; y += kTileHeight) {
@@ -114,7 +115,7 @@ void raytrace_scene()
             auto x0 = x;
             auto x1 = std::min(x + kTileWidth, kWidth - 1);
 
-            threadPool.queue([&image, x0, y0, x1, y1, &scene, &camera, &totalNodesTraversed, &totalPrimsTraversed]() {
+            threadPool.queue([&image, x0, y0, x1, y1, &scene, &camera, &totalStats]() {
 
 #if 0
 //                DiffuseVisualizer visualizer;
@@ -124,11 +125,9 @@ void raytrace_scene()
                 PathTracer tracer;
                 tracer.TraceBlock(image, x0, y0, x1, y1, scene, camera, kSamples);
 #ifdef PRT_ENABLE_STATS
-                totalNodesTraversed.fetch_add(tracer.getStats().nodesTraversed);
-                totalPrimsTraversed.fetch_add(tracer.getStats().primsTraversed);
+                totalStats.merge(tracer.getStats());
 #else
-                (void)totalNodesTraversed;
-                (void)totalPrimsTraversed;
+                (void)totalStats;
 #endif
 #endif
             });
@@ -154,8 +153,7 @@ void raytrace_scene()
     threadPool.waitAllTasksDone();
     printf("\n");
 #ifdef PRT_ENABLE_STATS
-    printf("Total traversed: nodes(%llu) primitives(%llu)\n",
-        totalNodesTraversed.load(), totalPrimsTraversed.load());
+    totalStats.print();
 #endif
 
 

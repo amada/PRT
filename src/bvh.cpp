@@ -10,6 +10,7 @@
 #include "vecmath.h"
 #include "triangle.h"
 #include "ray.h"
+#include "log.h"
 
 #include "bvh.h"
 
@@ -31,11 +32,13 @@ void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const M
     calculateBounds(primRemapping, mesh, start, end);
 
     int32_t primCount = end - start + 1;
-    if (primCount <= 4) {
+    if (primCount <= kMaxPrimCountInNode) {
         m_primIndex = start;
         m_primCount = primCount;
         m_children[0] = nullptr;
         m_children[1] = nullptr;
+        PRT_ASSERT(primCount > 0);
+        context.primCountInNode[primCount - 1]++;
         return;
     }
 
@@ -55,7 +58,7 @@ void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const M
     int32_t lowestCostSplit = -1;
 
     // Check cost for every dimension for SAH
-    for (uint32_t dim = 0; dim < 3; dim++) {
+    for (uint32_t dim = 0; dim < VectorConstants::kDimensions; dim++) {
         const float splitExtent = extent.v[dim] == 0.0 ? 0.0001 : extent.v[dim]; // Maybe skip this dim
         const float lowerPos = bbox.lower.v[dim];
         struct Bucket {
@@ -169,13 +172,18 @@ void Bvh::build(Mesh&& mesh)
 
     BvhBuildNode::BuildContext context;
     context.nodeCount = 1;
+    memset(&context.primCountInNode[0], 0, sizeof(context.primCountInNode));
 
     auto rootBuildNode = new BvhBuildNode;
     rootBuildNode->build(context, m_primRemapping, m_mesh, 0, primRemappingSize - 1);
 
     LinearBvhNode* nodes = new LinearBvhNode[context.nodeCount];
 
-//    printf("nodes=%u\n", context.nodeCount);
+    logPrintf(LogLevel::kVerbose, "LinearBvhNode (count=%u, size=%.3fMiB)\n", context.nodeCount, context.nodeCount*sizeof(LinearBvhNode)/1024.0f/1024.0f);
+    for (uint32_t i = 0; i < sizeof(context.primCountInNode)/sizeof(context.primCountInNode[0]); i++) {
+        logPrintf(LogLevel::kVerbose, "[%u] %u\n", i + 1, context.primCountInNode[i]);
+    }
+
     int32_t index = 0;
     buildLinearBvhNodes(nodes, &index, rootBuildNode);
 
@@ -212,14 +220,14 @@ void Bvh::intersect(T& hitPacket, const R& packet, const TraverseStackCache* sta
     LinearBvhNode* nodes[kStackSize];
     nodes[current] = &m_nodes[0];
 
-    bool reverseStackOrder[3];
+    bool reverseStackOrder[VectorConstants::kDimensions];
     RayPacketMask masks[kStackSize];
     if constexpr (std::is_same<R, SingleRayPacket>::value) {
-        for (uint32_t i = 0; i < 3; i++)
+        for (uint32_t i = 0; i < VectorConstants::kDimensions; i++)
             reverseStackOrder[i] = packet.ray.dir.v[i] < 0.0f;
     } else if constexpr (std::is_same<R, RayPacket>::value) {
         masks[current].setAll(true);
-        for (uint32_t i = 0; i < 3; i++)
+        for (uint32_t i = 0; i < VectorConstants::kDimensions; i++)
             reverseStackOrder[i] = packet.avgDir.v[i] < 0.0f;
     }
 
@@ -304,11 +312,11 @@ T Bvh::occluded(const R& ray) const
     bool reverseStackOrder[3];
     SoaMask masks[kStackSize];
     if constexpr (std::is_same<R, Ray>::value) {
-        for (uint32_t i = 0; i < 3; i++)
+        for (uint32_t i = 0; i < VectorConstants::kDimensions; i++)
             reverseStackOrder[i] = ray.dir.v[i] < 0.0f;
     } else if constexpr (std::is_same<R, SoaRay>::value) {
         masks[current].setAll(true);
-        for (uint32_t i = 0; i < 3; i++)
+        for (uint32_t i = 0; i < VectorConstants::kDimensions; i++)
             reverseStackOrder[i] = ray.avgDir.v[i] < 0.0f;
     }
 
@@ -362,8 +370,8 @@ void Bvh::createStackCache(TraverseStackCache& stackCache, const Vector3f& pos, 
     LinearBvhNode* nodes[TraverseStackCache::kNodeStackCapacity + TraverseStackCache::kNodeStackCapacity/2 + 1];
     nodes[current] = &m_nodes[0];
 
-    bool reverseStackOrder[3];
-    for (uint32_t i = 0; i < 3; i++)
+    bool reverseStackOrder[VectorConstants::kDimensions];
+    for (uint32_t i = 0; i < VectorConstants::kDimensions; i++)
         reverseStackOrder[i] = dir.v[i] < 0.0f;
 
     int32_t nodeCount = 1;

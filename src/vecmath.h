@@ -49,13 +49,18 @@ using maskvec_t = __m256;
 using floatvec4_t = __m128;
 #endif
 
-class SoaConstants {
+class SoaConstants final {
 public:
 #ifdef R_AVX8L
     static const uint32_t kLaneCount = 8;
 #else
     static const uint32_t kLaneCount = 4;
 #endif
+};
+
+class VectorConstants final {
+public:
+    static const uint32_t kDimensions = 3;
 };
 
 // clang

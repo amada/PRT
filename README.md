@@ -5,14 +5,18 @@ This is a playground repository for ray tracing-related experiments. The impleme
 
 Features
 --------
-* Support for SIMD instructions
-  - [x] Arm Neon
-  - [x] SSE/AVX
+* Support for acceleration with CPU SIMD
+  * Architectures
+    - [x] Arm Neon
+    - [x] SSE/AVX (No support for AVX-512)
+  - Computations
+    - [x] N rays - M triangles intersection
+    - [x] N rays - BBox intersection
+    - [x] Ray - BBox intersection
 * Acceleration structures
   - [x] BVH for triangle mesh
 * Ray packet tracing
   - [x] Primary rays
-  - [x] SIMD for processing multiple rays in packet
   - [ ] Secondary rays/binning
   - [ ] Compaction
 * Path tracing
@@ -46,17 +50,17 @@ The code is developed primarily on macOS, but should work on other platforms.
 
 How to build
 ------------
-TODO
+Use CMake to build
 
 
 Rendered images
 ---------------
 
-Cornell Box + Teapot @2048spp
+Cornell Box + Teapot
 -----------------------------
 ![Cornell Box + Teapot](images/cornell_box_teapot.png)
 
-San Miguel @128spp
+San Miguel
 -----------------
 ![San Miguel](images/san_miguel.png)
 san-miguel-low-poly from https://casual-effects.com/data/

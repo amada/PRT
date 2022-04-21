@@ -77,8 +77,6 @@ public:
 
     void build(Mesh&& mesh);
 private:
-    const static int32_t kDimensions = 3;
-
     void buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode* node);
 
     Mesh m_mesh; // TODO: should have multiple meshes

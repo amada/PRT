@@ -26,6 +26,23 @@ void Vector3f::print(const char* tag) const {
 }
 
 
+void SoaVector3f::print(const char* tag) const {
+    printf("----");
+
+    if (tag != nullptr) {
+        printf(" [SoaVector3f(%s)]\n", tag);
+    } else {
+        printf("\n");
+    }
+
+    for (uint32_t i = 0; i < SoaConstants::kLaneCount; i++) {
+        auto v = getLane(i);
+        printf("[%u] (%f, %f, %f)\n", i, v.x, v.y, v.z);
+    }
+    printf("----\n");
+}
+
+
 BBox BBox::init()
 {
     BBox b; 

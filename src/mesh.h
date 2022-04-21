@@ -49,10 +49,10 @@ public:
     void create(uint32_t primCount, uint32_t vertexCount, uint32_t materialCount, bool hasVertexNormal);
 
     template<typename T, typename R>
-    void intersect(T& hitPacket, const RayPacketMask& mask, const R& packet, uint32_t primIdx) const;
+    void intersect(T& hitPacket, const RayPacketMask& mask, const R& packet, const uint32_t* primIndices, const uint32_t primCount) const;
 
     template<typename R>
-    bool occluded(const R& ray, uint32_t primIdx) const;
+    bool occluded(const R& ray, const uint32_t* primIndices, uint32_t primCount) const;
 
     template<typename T, typename U>
     void getSurfaceProperties(T& properties, const U& hit) const;

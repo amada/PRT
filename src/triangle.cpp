@@ -8,6 +8,8 @@ const float kEpsilon = 0.0001f;
 TriangleIntersection intersectTriangle(
     const Vector3f& org, const Vector3f& dir, const Vector3f& v0, const Vector3f& v1, const Vector3f& v2)
 {
+// May want to define the pragma below as FMA is generated
+// #pragma clang fp contract(off)
     auto o = org;
     auto d = dir;
 
@@ -23,18 +25,18 @@ TriangleIntersection intersectTriangle(
     auto& v = abs_d;
     if (v.x > v.y) {
         if (v.x > v.z) {
-            v0r.set(v0r.y, v0r.z, v0r.x);
-            v1r.set(v1r.y, v1r.z, v1r.x);
-            v2r.set(v2r.y, v2r.z, v2r.x);
-            d.set(d.y, d.z, d.x);
+            v0r.set(v0r.z, v0r.y, v0r.x);
+            v1r.set(v1r.z, v1r.y, v1r.x);
+            v2r.set(v2r.z, v2r.y, v2r.x);
+            d.set(d.z, d.y, d.x);
         } else {
         }
     } else {
         if (v.y > v.z) {
-            v0r.set(v0r.z, v0r.x, v0r.y);
-            v1r.set(v1r.z, v1r.x, v1r.y);
-            v2r.set(v2r.z, v2r.x, v2r.y);
-            d.set(d.z, d.x, d.y);
+            v0r.set(v0r.x, v0r.z, v0r.y);
+            v1r.set(v1r.x, v1r.z, v1r.y);
+            v2r.set(v2r.x, v2r.z, v2r.y);
+            d.set(d.x, d.z, d.y);
         } else {
         }
     }
@@ -46,16 +48,10 @@ TriangleIntersection intersectTriangle(
     auto inv_dz = 1.0f/d.z;
 //    auto inv_dz = 1.0f/d.z;
 
-#if 0
-    v0r = v0r - v0r.z*ray.m_invDzDir;
-    v1r = v1r - v1r.z*ray.m_invDzDir;//*d;
-    v2r = v2r - v2r.z*ray.m_invDzDir;//*d;
-#else
-
     v0r = v0r - v0r.z*inv_dz*d;
     v1r = v1r - v1r.z*inv_dz*d;
     v2r = v2r - v2r.z*inv_dz*d;
-#endif
+
     auto e0 = v1r.x*v2r.y - v1r.y*v2r.x;
     auto e1 = v2r.x*v0r.y - v2r.y*v0r.x;
     auto e2 = v0r.x*v1r.y - v0r.y*v1r.x;
@@ -121,49 +117,43 @@ SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3
     auto v2z = v2r.getZ();
     auto inv_dz = 1.0f/d.getZ();
     auto invDzD = inv_dz*d;
-//    auto inv_dz = ray.m_invDz;
 
-#if 0
-    v0r = v0r - v0r.getZ()*ray.m_invDzDir;
-    v1r = v1r - v1r.getZ()*ray.m_invDzDir;
-    v2r = v2r - v2r.getZ()*ray.m_invDzDir;
-#else
+    // This leads to difference in precision compared to scalar version of ray-intersection
     v0r = v0r - v0r.getZ()*invDzD;
     v1r = v1r - v1r.getZ()*invDzD;
     v2r = v2r - v2r.getZ()*invDzD;
-#endif
+
     auto e0 = v1r.getX()*v2r.getY() - v1r.getY()*v2r.getX();
     auto e1 = v2r.getX()*v0r.getY() - v2r.getY()*v0r.getX();
     auto e2 = v0r.getX()*v1r.getY() - v0r.getY()*v1r.getX();
 
     auto mask = _mask;
 
-    SoaTriangleIntersection res;
-#if 1
     auto mask_eb = (e0.lessThan(0.0f) | e1.lessThan(0.0f) | e2.lessThan(0.0f))
         & (e0.greaterThan(0.0f) | e1.greaterThan(0.0f) | e2.greaterThan(0.0f));
 
     mask = mask & mask_eb.computeNot();
 
-    res.t = select(SoaTriangleIntersection::kNoIntersection, res.t, mask);
-
     if (!mask.anyTrue()) {
-        // TODO: initialize other fields?
+        SoaTriangleIntersection res;
+        res.t = SoaTriangleIntersection::kNoIntersection;
         return res;
     }
-#endif
 
     auto det = e0 + e1 + e2;
 
     mask = mask & det.notEquals(0.0f);
 
-    res.t = select(SoaTriangleIntersection::kNoIntersection, res.t, mask);
+//    res.t = select(SoaTriangleIntersection::kNoIntersection, res.t, mask);
 
 //    mask_det0 = mask_det0.computeNot();
+#if 0
     if (!mask.anyTrue()) {
+        SoaTriangleIntersection res;
+        res.t = SoaTriangleIntersection::kNoIntersection;
         return res;
     }
-
+#endif
     auto inv_det = 1.0f/det;
 
     auto t_scaled = (e0*v0z + e1*v1z + e2*v2z)*inv_dz;

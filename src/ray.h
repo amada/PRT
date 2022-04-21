@@ -20,33 +20,23 @@ public:
     float maxT;
     Vector3f invDir;
 
-    float invDz;
-    Vector3f invDzDir;
-
-//    bool m_verbose = false;
+    SoaMask swapXZ;
+    SoaMask swapYZ;
 
     void prepare() {
         invDir = 1.0f/dir;
-        auto d = dir;
-        // Find an element having the largest magnitude
-        auto abs_d = abs(d);
+
+        swapXZ.setAll(false);
+        swapYZ.setAll(false);
 
         // Set the largest magnitute element to z-axis
-        auto& v = abs_d;
-        if (v.x > v.y) {
-            if (v.x > v.z) {
-                d.set(d.y, d.z, d.x);
-            } else {
-            }
-        } else {
-            if (v.y > v.z) {
-                d.set(d.z, d.x, d.y);
-            } else {
-            }
+//        auto v = abs(dir);
+        auto e = dir.GetLongestElement();
+        if (e == 0) {
+            swapXZ.setAll(true);
+        } else if (e == 1) {
+            swapYZ.setAll(true);
         }
-
-        invDz = 1.0f/d.z;
-        invDzDir = invDz*d;        
     }
 };
 

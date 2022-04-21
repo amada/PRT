@@ -729,6 +729,8 @@ public:
 #endif
     }
 
+    void print(const char* tag = nullptr) const;
+
     // Recommended not to touch use getRaw*() as it's touching platform dependent vector variable
     floatvec_t getRawX() const {
         return m_x;

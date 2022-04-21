@@ -287,10 +287,7 @@ void Bvh::intersect(T& hitPacket, const R& packet, const TraverseStackCache* sta
 #endif
 // TODO: give all primIndex to m.intersect? rather than loop?
             int32_t primIndexPreMap = node->primOrSecondNodeIndex;
-            for (int32_t i = 0; i < primCount; i++) {
-                uint32_t primIndex = m_primRemapping[primIndexPreMap + i];
-                m.intersect(hitPacket, mask, packet, primIndex);
-            }
+            m.intersect(hitPacket, mask, packet, &m_primRemapping[primIndexPreMap], primCount);
         }
 
         current--;
@@ -350,12 +347,10 @@ T Bvh::occluded(const R& ray) const
             auto& m = m_mesh;
 
             int32_t primIndexPreMap = node->primOrSecondNodeIndex;
-            for (int32_t i = 0; i < primCount; i++) {
-                uint32_t primIndex = m_primRemapping[primIndexPreMap + i];
+            static_assert(SoaConstants::kLaneCount >= BvhBuildNode::kMaxPrimCountInNode, "Lanes must be more than max primitives in leaf node");
 
-                if (m.occluded(ray, primIndex))
-                    return true;
-            }
+            if (m.occluded(ray, &m_primRemapping[primIndexPreMap], primCount))
+                return true;
         }
 
         current--;

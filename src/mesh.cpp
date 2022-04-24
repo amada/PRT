@@ -246,7 +246,7 @@ void Mesh::loadObj(const char* path)
             texcoordIndices.push_back(i.vertex_index);
             uint32_t b;
             b = 2*i.texcoord_index;
-            tex[i.vertex_index] = Vector2f(attr.texcoords[b], attr.texcoords[b + 1]);
+            tex[i.vertex_index] = Vector2f(attr.texcoords[b], 1.0f - attr.texcoords[b + 1]);
 /*
             b = 3*i.normal_index;
             norm[i.vertex_index] 

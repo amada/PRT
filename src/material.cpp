@@ -4,14 +4,13 @@
 #include <vector>
 #include <filesystem>
 
+#include "../ext/tinyobjloader/tiny_obj_loader.h"
+
 #include "log.h"
 #include "vecmath.h"
 #include "triangle.h"
 #include "mesh.h"
 
-#include "../ext/tinyobjloader/tiny_obj_loader.h"
-#define STB_IMAGE_IMPLEMENTATION
-#include "../ext/stb/stb_image.h"
 
 #include "material.h"
 
@@ -21,203 +20,11 @@
 namespace prt
 {
 
+
 inline Vector3f degamma(const Vector3f& c)
 {
+    // Possibly square can be used to replace pow. Pre-calculation is needed when loading texture, though
     return Vector3f(pow(c.x, 2.2f), pow(c.y, 2.2f), pow(c.z, 2.2f));
-}
-
-inline void computeBilinearIndicesAndWeights(float* k, int32_t* indices, int32_t bytesPerPixel, const Vector2f& uv, int32_t width, int32_t height)
-{
-    float s = uv.x - std::floor(uv.x);
-    float t = 1.0f - (uv.y - std::floor(uv.y));
-
-    int32_t x[2];
-    x[0] = std::floor(s*(width - 1));
-    x[1] = std::min(x[0] + 1, width - 1);
-    int32_t y[2];
-    y[0] = std::floor(t*(height - 1));
-    y[1] = std::min(y[0] + 1, height - 1);
-
-    indices[0] = bytesPerPixel*(x[0] + y[0]*width);
-    indices[1] = bytesPerPixel*(x[1] + y[0]*width);
-    indices[2] = bytesPerPixel*(x[0] + y[1]*width);
-    indices[3] = bytesPerPixel*(x[1] + y[1]*width);
-
-    k[0] = (1.0f - s)*(1.0f - t);
-    k[1] = s*(1.0f - t);
-    k[2] = (1.0f - s)*t;
-    k[3] = s*t;
-}
-
-inline void computeBilinearIndicesAndWeights(SoaFloat* k, SoaInt* indices, int32_t bytesPerPixel, const SoaVector2f& uv, int32_t width, int32_t height)
-{
-    auto s = uv.getX() - floor(uv.getX());
-    auto t = 1.0f - (uv.getY() - floor(uv.getY()));
-
-    SoaInt x[2];
-    x[0] = floor(s*(width - 1));
-    x[1] = min(x[0] + 1, (int32_t)width - 1);
-    SoaInt y[2];
-    y[0] = floor(t*(height - 1));
-    y[1] = min(y[0] + 1, (int32_t)height - 1);
-
-    indices[0] = bytesPerPixel*(x[0] + y[0]*width);
-    indices[1] = bytesPerPixel*(x[1] + y[0]*width);
-    indices[2] = bytesPerPixel*(x[0] + y[1]*width);
-    indices[3] = bytesPerPixel*(x[1] + y[1]*width);
-
-    k[0] = (1.0f - s)*(1.0f - t);
-    k[1] = s*(1.0f - t);
-    k[2] = (1.0f - s)*t;
-    k[3] = s*t;
-}
-
-template<typename T>
-T Texture::sample(const Vector2f& uv) const
-{
-    float k[4];
-    int32_t pindex[4];
-    computeBilinearIndicesAndWeights(k, pindex, bytesPerPixel, uv, width, height);
-
-    const uint8_t* p = (uint8_t*)texels;
-    T c = 0.0f;
-    for (uint32_t i = 0; i < 4; i++) {
-        const uint32_t base = pindex[i];
-
-// TODO: respect bytesPerPixel
-        if constexpr(std::is_same<T, Vector4f>::value) {
-            c = c + k[i]*Vector4f(p[base + 0], p[base + 1], p[base + 2], p[base + 3]);
-        } else if constexpr(std::is_same<T, Vector3f>::value) {
-            c = c + k[i]*Vector3f(p[base + 0], p[base + 1], p[base + 2]);
-        } else if constexpr(std::is_same<T, Vector2f>::value) {
-            c = c + k[i]*Vector2f(p[base + 0], p[base + 1]);
-        } else if constexpr(std::is_same<T, float>::value) {
-            c = c + k[i]*p[base + 0];
-        } else {
-            printf("Unsupported texture type");
-            __builtin_trap();
-        }
-    }
-
-    const float kChannelScale = 1.0f/255.0f;
-    return kChannelScale*c;
-}
-
-bool Texture::testAlpha(const Vector2f& uv) const
-{
-    float k[4];
-    int32_t pindex[4];
-    computeBilinearIndicesAndWeights(k, pindex, bytesPerPixel, uv, width, height);
-
-    const uint8_t* p = (uint8_t*)texels;
-    float alpha = 0.0f;
-    for (uint32_t i = 0; i < 4; i++) {
-        uint32_t base = pindex[i];
-        alpha = alpha + k[i]*p[base + kAlphaOffset];
-    }
-
-    return alpha > kAlphaThreashold;
-}
-
-SoaMask Texture::testAlpha(const SoaMask& mask, const SoaVector2f& uv) const
-{
-    SoaFloat k[4];
-    SoaInt pindex[4];
-    computeBilinearIndicesAndWeights(k, pindex, bytesPerPixel, uv, width, height);
-
-    // do - while can be used here because mask shouldn't be zero
-    uint32_t maskAlpha = 0;
-    auto bits = mask.ballot();
-    do {
-        int32_t index = bitScanForward(bits);
-        // TODO: vectorize...
-        const uint8_t* p = (uint8_t*)texels;
-        float alpha = 0.0f;
-        for (uint32_t i = 0; i < 4; i++) {
-            uint32_t base = pindex[i].getLane(index);
-            alpha = alpha + k[i].getLane(index)*p[base + kAlphaOffset];
-        }
-        if (alpha > kAlphaThreashold)
-            maskAlpha |= 1 << index;
-
-        bits &= bits - 1;
-    } while(bits);
-
-    return SoaMask(maskAlpha);
-}
-
-void convertNormalToBump(uint8_t* bump, const uint8_t* normal, uint32_t width, uint32_t height)
-{
-    const float kChannelScale = 1.0f/255.0f;
-    for (uint32_t y = 0; y < height; y++) {
-        for (uint32_t x = 0; x < width; x++) {
-            uint32_t index = 4*(x + y*width);
-            float nx = 2.0f*(normal[index + 0]*kChannelScale - 0.5f);
-            float ny = 2.0f*(normal[index + 1]*kChannelScale - 0.5f);
-            float nz = 2.0f*(normal[index + 2]*kChannelScale - 0.5f);
-            auto n = normalize(Vector3f(nx, ny, nz));
-
-            uint32_t bindex = x + y*width;
-            bump[bindex] = 0xff*clamp(n.z*n.z*n.z*n.z, 0.0f, 1.0f);
-        }
-    }
-}
-
-void Texture::load(const char* path, bool bumpTexture)
-{
-    int w = 0;
-    int h = 0;
-    int comp = 0;
-
-    if (!stbi_info(path, &w, &h, &comp)) {
-        logPrintf(LogLevel::kError, "Failed stbi_info '%s' %s\n", path, stbi_failure_reason());
-        return;
-    }
-
-    int req_comp = STBI_rgb_alpha;
-    if (comp == 1)
-        req_comp = STBI_grey;
-
-    auto p = stbi_load(path, &w, &h, &comp, req_comp);
-
-    width = w;
-    height = h;
-    format = 0;
-    bytesPerPixel = req_comp;
-
-    if (p) {
-        if (bumpTexture && comp == 3) {
-            bytesPerPixel = 1;
-        }
-
-        const uint32_t size = width*height*bytesPerPixel; 
-        texels = new uint8_t[size];
-
-        if (bumpTexture && comp == 3) {
-            convertNormalToBump((uint8_t*)texels, (uint8_t*)p, width, height);
-        } else {
-            memcpy(texels, p, size);
-        }
-
-        stbi_image_free(p);
-        logPrintf(LogLevel::kVerbose, "Loaded '%s' (%d, %d) comp=%d, texels=%p\n", path, w, h, comp, p);
-    } else {
-        logPrintf(LogLevel::kError, "Failed loading '%s' %s\n", path, stbi_failure_reason());
-    }
-}
-
-bool Texture::isAlphaTestRequired() const
-{
-    if (!isValid())
-        return false;
-
-    for (int i = 0; i < width*height; ++i) {
-        if (((uint8_t*)texels)[i*4 + 3] < 255) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 void Material::load(const tinyobj::material_t& m, const std::string& dirPath)

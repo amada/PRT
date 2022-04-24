@@ -3,6 +3,7 @@
 #include <string>
 
 #include "vecmath.h"
+#include "texture.h"
 
 namespace tinyobj
 {
@@ -24,36 +25,6 @@ enum class ReflectionType : uint32_t {
     kDiffuse = 0,
     kSpecular,
     kRefraction
-};
-
-
-struct Texture
-{
-    friend struct Material;
-
-    uint16_t width;
-    uint16_t height;
-    uint16_t format;
-    uint16_t bytesPerPixel;
-    void* texels;
-
-// TODO: Sample texture with other than 4 channels
-//    template<typename T>
-    bool isValid() const { return texels != nullptr; }
-
-    float onePixel() const { return 0.5f/width + 0.5f/height; }
-
-    template<typename T>
-    T sample(const Vector2f& uv) const;
-    bool testAlpha(const Vector2f& uv) const;
-    SoaMask testAlpha(const SoaMask& mask, const SoaVector2f& uv) const;
-
-    bool isAlphaTestRequired() const;
-private:
-    const int32_t kAlphaThreashold = 127;
-    const int32_t kAlphaOffset = 3;
-
-    void load(const char* path, bool bumpTexture = false);
 };
 
 struct Material

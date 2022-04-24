@@ -27,12 +27,30 @@ public:
         m_bvh.push_back(bvh); 
     } // shared ptr?
 
-    void setDirectionalLight(const Vector3f& dir, const Vector3f& intensity) {
-        m_directionalLight = {dir, intensity};
+
+    bool isLightAvailable(LightType type) const {
+        return (m_availableLights & (1 << (int32_t)type)) != 0;
     }
 
-    DirectionalLight getDirectionalLight() const {
+    void setDirectionalLight(const Vector3f& dir, const Vector3f& intensity) {
+        m_directionalLight = {dir, intensity};
+        m_availableLights |= (1 << (int32_t)LightType::kDirectional);
+        m_availableLights &= ~(1 << (int32_t)LightType::kInfiniteArea);
+
+    }
+
+    const DirectionalLight& getDirectionalLight() const {
         return m_directionalLight;
+    }
+
+    void setInfiniteAreaLight(const char* path) {
+        m_infiniteAreaLight.create(path);
+        m_availableLights |= (1 << (int32_t)LightType::kInfiniteArea);
+        m_availableLights &= ~(1 << (int32_t)LightType::kDirectional);
+    }
+
+    const InfiniteAreaLight& getInfiniteAreaLight() const {
+        return m_infiniteAreaLight;
     }
 
     void createStackCache(TraverseStackCache& stackCache, const Vector3f& pos, const Vector3f& dir) const {
@@ -45,7 +63,9 @@ private:
     std::vector<Bvh*> m_bvh;
 
     // TODO: support for multiple lights
+    uint32_t m_availableLights;
     DirectionalLight m_directionalLight;
+    InfiniteAreaLight m_infiniteAreaLight;
 };
 
 

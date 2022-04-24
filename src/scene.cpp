@@ -9,7 +9,9 @@ namespace prt
 
 void Scene::init()
 {
-    m_directionalLight = {0.0, 0.0};
+    m_directionalLight.init();
+    m_infiniteAreaLight.init();
+    m_availableLights = 0;
 }
 
 template<typename T, typename U>

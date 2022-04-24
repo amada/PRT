@@ -137,16 +137,38 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
 
             beta = beta*material->sampleDiffuse(prop.uv);
 
-            auto light = scene.getDirectionalLight();
+            if (scene.isLightAvailable(LightType::kInfiniteArea)) {
+                auto& light = scene.getInfiniteAreaLight();
 
-            if (light.intensity.isNonZero()) {
+                for (uint32_t l = 0; l < 4; l++) {
+                    Vector3f lightDir;
+                    Vector3f lightIntensity;
+                    light.sample(lightDir, lightIntensity, Vector2f(rand.generate(), rand.generate()));
+
+                    Ray shadowRay;
+                    shadowRay.maxT = 100000.0f; // define infinite
+                    shadowRay.org = pos;
+                    shadowRay.dir = lightDir;
+                    shadowRay.prepare();
+    #ifdef PRT_ENABLE_STATS
+                    m_stats.raysTraced++;
+                    m_stats.occludedTraced++;
+    #endif
+                    if (!scene.occluded<bool, Ray>(shadowRay)) {
+                        lightRadiance = lightRadiance + lightIntensity*std::max(dot(lightDir, normal), 0.0f)/kPi;
+                    }
+                }
+            } else if (scene.isLightAvailable(LightType::kDirectional)) {
+                auto light = scene.getDirectionalLight();
+
                 Ray shadowRay;
                 shadowRay.maxT = 100000.0f;
                 shadowRay.org = pos;
                 shadowRay.dir = light.dir;
                 shadowRay.prepare();
 #ifdef PRT_ENABLE_STATS
-                m_stats.raysTraced++;;
+                m_stats.raysTraced++;
+                m_stats.occludedTraced++;
 #endif
                 if (!scene.occluded<bool, Ray>(shadowRay)) {
                     lightRadiance = light.intensity*std::max(dot(light.dir, normal), 0.0f)/kPi;

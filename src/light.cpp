@@ -66,7 +66,6 @@ void InfiniteAreaLight::create(const char* path)
         auto pv = accumV + invV*vert[y];
         vert[y] = pv;
         accumV = pv;
-//        printf("[%03u] %.3f ", y, pv);
     }
 }
 
@@ -76,19 +75,19 @@ void InfiniteAreaLight::sample(Vector3f& dir, Vector3f& color, const Vector2f& u
     // TODO bisect
     int32_t y;
     float yf = 0.0f;
-    for (y = 0; y < m_height; y++) {
+    for (y = 1; y < m_height; y++) {
         if (m_verticalP[y] > u.y) {
-            float prev = m_verticalP[std::max(y - 1, 0)];
+            float prev = m_verticalP[y - 1];
             yf = y + (u.y - prev)/(m_verticalP[y] - prev) - 1.0f;
             break;
         }
     }
 
     float xf = 0.0f;
-    for (int32_t x = 0; x < m_width; x++) {
-        if (m_horizontalP[x + y*m_image.width] > u.x) {
-            float prev = m_horizontalP[std::max(x - 1, 0) + y*m_image.width];
-            xf = x + (u.x - prev)/(m_horizontalP[x + y*m_image.width] - prev) - 1.0f;
+    for (int32_t x = 1; x < m_width; x++) {
+        if (m_horizontalP[x + y*m_width] > u.x) {
+            float prev = m_horizontalP[x - 1 + y*m_width];
+            xf = x + (u.x - prev)/(m_horizontalP[x + y*m_width] - prev) - 1.0f;
             break;
         }
     }

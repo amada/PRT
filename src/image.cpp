@@ -20,7 +20,7 @@ Image::~Image()
     m_pixels = nullptr;
 }
 
-void Image::SaveToPpm(const char* path) const
+void Image::saveToPpm(const char* path) const
 {
     FILE *fp = fopen(path, "wb");
     if (!fp) {

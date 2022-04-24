@@ -6,7 +6,7 @@ if(WIN32)
     set(CMAKE_GENERATOR_TOOLSET "ClangCL")
 else()
     add_link_options("-lz")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -flto=thin -Wall -Werror")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -flto=thin -Wall")
 endif()
 
 project(prt CXX)

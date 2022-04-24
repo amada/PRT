@@ -18,8 +18,15 @@
 
 using namespace prt;
 
-const uint32_t kWidth = 256*4;
-const uint32_t kHeight = 256*4;
+#if 1
+const uint32_t kWidth = 1024;
+const uint32_t kHeight = 1024;
+#else
+const uint32_t kWidth = 1280;
+const uint32_t kHeight = 720;
+#endif
+
+#define DATA_DIR "../../data/"
 
 
 void setupCornellBox(Scene& scene, Camera& camera, bool withTeapot)
@@ -30,7 +37,7 @@ void setupCornellBox(Scene& scene, Camera& camera, bool withTeapot)
 
     if (withTeapot) {
         Mesh teapot;
-        teapot.loadObj("../../data/teapot/teapot.obj",
+        teapot.loadObj(DATA_DIR "teapot/teapot.obj",
                        {.diffuse = Vector3f{0.9f, 0.9f, 0.9f}, .reflectionType = ReflectionType::kSpecular});
 
         auto pos = teapot.getPositionBuffer();
@@ -53,13 +60,14 @@ void setupCornellBox(Scene& scene, Camera& camera, bool withTeapot)
 void setupSponza(Scene& scene, Camera& camera)
 {
     Mesh sponza;
-    sponza.loadObj("../../data/sponza/sponza.obj");
+    sponza.loadObj(DATA_DIR "sponza/sponza.obj");
     sponza.calculateVertexNormals();
 
     auto sponzaBvh = new Bvh;;
     sponzaBvh->build(std::move(sponza));
 
-    scene.setDirectionalLight(normalize(Vector3f(0.05f, 1.0f, 0.1f)), Vector3f(16.7f, 15.6f, 11.7f)); // sky.exr
+//    scene.setDirectionalLight(normalize(Vector3f(0.05f, 1.0f, 0.1f)), Vector3f(16.7f, 15.6f, 11.7f)); // sky.exr
+    scene.setInfiniteAreaLight(DATA_DIR "skylight-day.exr");
 
     scene.add(sponzaBvh);
 
@@ -69,13 +77,15 @@ void setupSponza(Scene& scene, Camera& camera)
 void setupSanMiguelLowPoly(Scene& scene, Camera& camera)
 {
     Mesh sanMiguel;
-    sanMiguel.loadObj("../../data/san-miguel/san-miguel-low-poly.obj");
+    sanMiguel.loadObj(DATA_DIR "san-miguel/san-miguel-low-poly.obj");
     sanMiguel.calculateVertexNormals();
 
     auto sanMiguelBvh = new Bvh;
     sanMiguelBvh->build(std::move(sanMiguel));
 
-    scene.setDirectionalLight(normalize(Vector3f(0.2f, 1.0f, 0.2f)), Vector3f(16.7f, 15.6f, 11.7f)); // sky.exr
+//    scene.setDirectionalLight(normalize(Vector3f(0.2f, 1.0f, 0.2f)), Vector3f(16.7f, 15.6f, 11.7f)); // sky.exr
+    scene.setInfiniteAreaLight(DATA_DIR "skylight-day.exr");
+
     scene.add(sanMiguelBvh);
 
     camera.create({9, 2.0, 10.2}, {0.4, 0.1, -1}, kWidth, kHeight); // San Miguel
@@ -137,7 +147,7 @@ void raytrace_scene()
     }
 
     do {
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         auto now = std::chrono::steady_clock::now();
         auto finishedTasks = totalTasks - threadPool.getTaskCount();
         auto finished = 100.0f*finishedTasks/totalTasks;
@@ -165,7 +175,7 @@ void raytrace_scene()
     sec = sec - 60*minute;
     printf("%um%us (%.3fms) @%uspp\n", minute, sec, ms, kSamples);
 
-    image.SaveToPpm("cornell_box.ppm");
+    image.saveToPpm("cornell_box.ppm");
 }
 
 int main(int argc, char** argv)

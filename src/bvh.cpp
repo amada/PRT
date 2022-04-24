@@ -181,8 +181,9 @@ void Bvh::build(Mesh&& mesh)
 
     logPrintf(LogLevel::kVerbose, "LinearBvhNode (count=%u, size=%.3fMiB)\n", context.nodeCount, context.nodeCount*sizeof(LinearBvhNode)/1024.0f/1024.0f);
     for (uint32_t i = 0; i < sizeof(context.primCountInNode)/sizeof(context.primCountInNode[0]); i++) {
-        logPrintf(LogLevel::kVerbose, "[%u] %u\n", i + 1, context.primCountInNode[i]);
+        logPrintf(LogLevel::kVerbose, "([%u] %u) ", i + 1, context.primCountInNode[i]);
     }
+    logPrintf(LogLevel::kVerbose, "\n");
 
     int32_t index = 0;
     buildLinearBvhNodes(nodes, &index, rootBuildNode);

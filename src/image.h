@@ -11,7 +11,7 @@ public:
     Image(uint32_t width, uint32_t height, bool tonemap = true);
     virtual ~Image();
 
-    void WritePixel(uint32_t x, uint32_t y, const Vector3f& color) {
+    void writePixel(uint32_t x, uint32_t y, const Vector3f& color) {
         auto c = m_tonemap ? color/(color + 1) : color;
         const uint32_t indexBase = (x + y*m_width)*kChannelsPerPixel;
         m_pixels[indexBase + 0] = gamma(clamp(c.x, 0.0f, 1.0f))*0xff;
@@ -19,10 +19,10 @@ public:
         m_pixels[indexBase + 2] = gamma(clamp(c.z, 0.0f, 1.0f))*0xff;
     }
 
-    void SaveToPpm(const char* path) const;
+    void saveToPpm(const char* path) const; // saveToPpm
 
-    uint32_t GetWidth() const { return m_width; }
-    uint32_t GetHeigit() const { return m_height; }
+    uint32_t getWidth() const { return m_width; }
+    uint32_t getHeigit() const { return m_height; }
 private:
     const static uint32_t kChannelsPerPixel = 3;
     float gamma(float f)

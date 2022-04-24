@@ -20,7 +20,7 @@ void DiffuseVisualizer::TraceBlock(Image& image, uint32_t x0, uint32_t y0, uint3
         for (uint32_t x = x0; x <= x1; x++) {
             Vector3f color = Trace(camera, scene, x, y);
 
-            image.WritePixel(x, y, color);
+            image.writePixel(x, y, color);
         }
     }
 }

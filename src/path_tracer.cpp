@@ -27,7 +27,7 @@ void PathTracer::TraceBlock(Image& image, uint32_t x0, uint32_t y0, uint32_t x1,
 
             color = color/samples;
 
-            image.WritePixel(x, y, color);
+            image.writePixel(x, y, color);
         }
     }    
 }

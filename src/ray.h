@@ -75,6 +75,7 @@ struct SingleRayPacket
 {
     Ray ray;
 
+    SingleRayPacket() = default;
     SingleRayPacket(const Ray& ray) : ray(ray) {}
 };
 
@@ -84,8 +85,8 @@ struct RayPacket
     static const uint32_t kVectorCount = kSize/SoaConstants::kLaneCount;
     SoaRay rays[kVectorCount];
     Vector3f avgDir;
-//    uint32_t count;
 };
+
 
 struct RayPacketMask
 {
@@ -100,6 +101,13 @@ struct RayPacketMask
         return result;
     }
 #endif
+    RayPacketMask() = default;
+    RayPacketMask(uint32_t mask) {
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
+            masks[i] = SoaMask(mask & ((1 << SoaConstants::kLaneCount) - 1));
+            mask >>= SoaConstants::kLaneCount;
+        }
+    }
 
     RayPacketMask operator&(const RayPacketMask& other) const {
         RayPacketMask result;
@@ -109,8 +117,20 @@ struct RayPacketMask
         return result;
     }
 
-    void computeAndSelf(uint32_t lane, const SoaMask& mask) {
-        masks[lane] = masks[lane] & mask;
+    RayPacketMask operator|(const RayPacketMask& other) const {
+        RayPacketMask result;
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
+            result.masks[i] = masks[i] | other.masks[i];
+        }
+        return result;
+    }
+
+    void computeAndSelf(uint32_t v, const SoaMask& mask) {
+        masks[v] = masks[v] & mask;
+    }
+
+    void computeOrSelf(uint32_t v, const SoaMask& mask) {
+        masks[v] = masks[v] | mask;
     }
 
     void setAll(bool b) {
@@ -119,8 +139,8 @@ struct RayPacketMask
         }
     }
 
-    bool anyTrue(uint32_t lane) const {
-        return masks[lane].anyTrue();
+    bool anyTrue(uint32_t v) const {
+        return masks[v].anyTrue();
     }
 
     bool anyTrue() const {
@@ -130,6 +150,15 @@ struct RayPacketMask
             }
         }
         return false;
+    }
+
+    bool allTrue() const {
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
+            if (!masks[i].allTrue()) {
+                return false;
+            }
+        }
+        return true;
     }
 };
 

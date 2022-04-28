@@ -40,7 +40,7 @@ Vector3f PathTracer::Trace(const Camera& camera, const Scene& scene, uint32_t x,
     for (uint32_t i = 0; i < samples; i++) {
         auto ray = camera.GenerateJitteredRay(m_rand, x, y);
         SingleRayHitPacket hitPacket;
-        scene.intersect(hitPacket, SingleRayPacket(ray));
+        scene.intersect(hitPacket, ray);
 
         const auto& hit = hitPacket.hit;
         if (hit.isHit()) {
@@ -54,6 +54,7 @@ Vector3f PathTracer::Trace(const Camera& camera, const Scene& scene, uint32_t x,
     return color;
 }
 
+// Name should be packet tracing
 Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t x, uint32_t y, uint32_t samples, const TraverseStackCache* stackCache)
 {
     Vector3f color(0);
@@ -137,41 +138,85 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
 
             beta = beta*material->sampleDiffuse(prop.uv);
 
+            const float kFar = 2.0f*scene.getRadius();
+            const float kEpsilon = 0.0008f; // TODO may want this to be relative value to kFar
+
+            const uint32_t kMaxNumOccludeRays = 1;
+            bool groupingOccludeRays = false;
+            bool directLighting = false;
+            uint32_t numOccludeRays = 0;
+            Vector3f lightDir[kMaxNumOccludeRays];
+            Vector3f lightIntensity[kMaxNumOccludeRays];
+            Vector3f avgDir(0.0f);
+
             if (scene.isLightAvailable(LightType::kInfiniteArea)) {
                 auto& light = scene.getInfiniteAreaLight();
 
-                for (uint32_t l = 0; l < 4; l++) {
-                    Vector3f lightDir;
-                    Vector3f lightIntensity;
-                    light.sample(lightDir, lightIntensity, Vector2f(rand.generate(), rand.generate()));
-
-                    Ray shadowRay;
-                    shadowRay.maxT = 100000.0f; // define infinite
-                    shadowRay.org = pos;
-                    shadowRay.dir = lightDir;
-                    shadowRay.prepare();
-    #ifdef PRT_ENABLE_STATS
-                    m_stats.raysTraced++;
-                    m_stats.occludedTraced++;
-    #endif
-                    if (!scene.occluded<bool, Ray>(shadowRay)) {
-                        lightRadiance = lightRadiance + lightIntensity*std::max(dot(lightDir, normal), 0.0f)/kPi;
+                float dotmul = 1.0f;
+                for (uint32_t l = 0; l < kMaxNumOccludeRays; l++) {
+                    light.sample(lightDir[l], lightIntensity[l], Vector2f(rand.generate(), rand.generate()));
+                    if (l > 0) {
+                        dotmul *= std::abs(dot(lightDir[l], lightDir[l - 1]));
                     }
+                    avgDir = avgDir + lightDir[l];
                 }
+
+                groupingOccludeRays = kMaxNumOccludeRays > 1 && dotmul > 0.5f;
+                directLighting = true;
+                numOccludeRays = kMaxNumOccludeRays;
             } else if (scene.isLightAvailable(LightType::kDirectional)) {
                 auto light = scene.getDirectionalLight();
+                lightDir[0] = light.dir;
+                lightIntensity[0] = light.intensity;
+                directLighting = true;
+                numOccludeRays = 1;
+            }
 
-                Ray shadowRay;
-                shadowRay.maxT = 100000.0f;
-                shadowRay.org = pos;
-                shadowRay.dir = light.dir;
-                shadowRay.prepare();
-#ifdef PRT_ENABLE_STATS
-                m_stats.raysTraced++;
-                m_stats.occludedTraced++;
-#endif
-                if (!scene.occluded<bool, Ray>(shadowRay)) {
-                    lightRadiance = light.intensity*std::max(dot(light.dir, normal), 0.0f)/kPi;
+            if (directLighting) {
+                if (groupingOccludeRays) {
+                    static_assert(kMaxNumOccludeRays < RayPacket::kSize, "Not firing more than a single RayPacket");
+                    SoaRay shadowRay;
+                    shadowRay.maxT = kFar - kEpsilon;
+                    shadowRay.dir = SoaVector3f(lightDir)*-1.0f;
+                    shadowRay.org = SoaVector3f(pos) - (SoaFloat(kFar)*shadowRay.dir);
+                    shadowRay.prepare();
+
+                    RayPacket packet = {{shadowRay}, avgDir/RayPacket::kSize};
+
+                    RayPacketMask mask(~0xf); // 4 rays;
+
+    #ifdef PRT_ENABLE_STATS
+                    m_stats.raysTraced += kMaxNumOccludeRays;
+                    m_stats.occludedTraced += kMaxNumOccludeRays;
+    #endif
+
+                    auto omask = scene.occluded<RayPacketMask, RayPacket>(mask, packet);
+
+                    for (uint32_t v = 0; v < RayPacket::kVectorCount; v++) {
+                        auto bits = omask.masks[v].computeNot().ballot();
+                        while (bits) {
+                            auto index = bitScanForward(bits);
+                            lightRadiance = lightRadiance + lightIntensity[index]*std::max(dot(lightDir[index], normal), 0.0f)/kPi;
+
+                            bits &= bits - 1;
+                        }
+                    }
+                } else {
+                    for (uint32_t l = 0; l < numOccludeRays; l++) {
+                        Ray shadowRay;
+                        shadowRay.maxT = kFar - kEpsilon;
+                        shadowRay.org = pos + kFar*lightDir[l];
+                        shadowRay.dir = -lightDir[l];
+
+                        shadowRay.prepare();
+    #ifdef PRT_ENABLE_STATS
+                        m_stats.raysTraced++;
+                        m_stats.occludedTraced++;
+    #endif
+                        if (!scene.occluded<bool, SingleRayPacket>(RayPacketMask(), {shadowRay})) {
+                            lightRadiance = lightRadiance + lightIntensity[l]*std::max(dot(lightDir[l], normal), 0.0f)/kPi;
+                        }
+                    }
                 }
             }
         } else if (material->reflectionType == ReflectionType::kSpecular) {

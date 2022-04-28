@@ -12,7 +12,20 @@ void Scene::init()
     m_directionalLight.init();
     m_infiniteAreaLight.init();
     m_availableLights = 0;
+    m_bbox = BBox::init();
+    m_radius = std::numeric_limits<float>::max();
 }
+
+void Scene::add(Bvh* bvh) 
+{ 
+    bvh->m_mesh.m_id = m_bvh.size();
+    m_bvh.push_back(bvh);
+    m_bbox.grow(bvh->m_mesh.getBBox());
+
+    auto center = m_bbox.center();
+    m_radius = length(m_bbox.upper - center);
+} // shared ptr?
+
 
 template<typename T, typename U>
 void Scene::getSurfaceProperties(T& properties, const U& hit) const
@@ -54,20 +67,34 @@ template void Scene::intersect<RayHitPacket, RayPacket>(RayHitPacket&, const Ray
 
 
 template<typename T, typename R>
-T Scene::occluded(const R& ray) const
+T Scene::occluded(const RayPacketMask& _mask, const R& packet) const
 {
+    auto mask = _mask;
     // TODO bbox/as for bvhs
     for (auto &bvh : m_bvh) {
         // TODO ray transform per BVH
 
-        if (bvh->occluded<T, R>(ray))
-            return true;
+        auto res = bvh->occluded<T, R>(mask, packet);
+        if constexpr (std::is_same<R, SingleRayPacket>::value) {
+            if (res)
+                return res;
+        } else if constexpr (std::is_same<R, RayPacket>::value) {
+            mask = mask | res;
+            if (mask.allTrue())
+                return mask;
+        }
+
     }
 
-    return false;
+    if constexpr (std::is_same<R, SingleRayPacket>::value) {
+        return false;
+    } else if constexpr (std::is_same<R, RayPacket>::value) {
+        return mask;
+    }
 }
 
-template bool Scene::occluded<bool, Ray>(const Ray&) const;
+template bool Scene::occluded<bool, SingleRayPacket>(const RayPacketMask& mask, const SingleRayPacket&) const;
+template RayPacketMask Scene::occluded<RayPacketMask, RayPacket>(const RayPacketMask& mask, const RayPacket&) const;
 
 
 } // namespace prt

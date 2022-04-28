@@ -67,11 +67,11 @@ public:
     // TODO constructor, destructor
     Bvh() = default;
 
-    template<typename T, typename U>
-    void intersect(T& result, const U& ray, const TraverseStackCache* stackCache) const;
+    template<typename T, typename R>
+    void intersect(T& result, const R& packet, const TraverseStackCache* stackCache) const;
 
     template<typename T, typename R>
-    T occluded(const R& ray) const;
+    T occluded(const RayPacketMask& mask, const R& packet) const;
 
     void createStackCache(TraverseStackCache& stackCache, const Vector3f& pos, const Vector3f& dir) const;
 

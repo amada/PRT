@@ -33,6 +33,7 @@ Mesh::Mesh(Mesh&& m)
     m_materialCount = m.m_materialCount;
     m_hasVertexNormal = m.m_hasVertexNormal;
     m_hasTexcoord = m.m_hasTexcoord;
+    m_bbox = m.m_bbox;
 
     m.m_indices = nullptr;
     m.m_positions = nullptr;
@@ -59,6 +60,7 @@ Mesh& Mesh::operator=(Mesh&& m)
     m_texcoordsCount = m.m_texcoordsCount;
     m_hasVertexNormal = m.m_hasVertexNormal;
     m_hasTexcoord = m.m_hasTexcoord;
+    m_bbox = m.m_bbox;
 
     m.m_indices = nullptr;
     m.m_positions = nullptr;
@@ -195,6 +197,8 @@ void Mesh::loadObj(const char* path, const Material& mat)
     memset(getPrimMateialBuffer(), 0, primCount*sizeof(uint32_t));
     memcpy(getMaterialBuffer(), &mat, sizeof(Material));
 
+    calculateBounds();
+
     m_hasTexcoord = true;
 
     logPrintf(LogLevel::kVerbose, "Finished loading '%s'\n", path);
@@ -277,10 +281,24 @@ void Mesh::loadObj(const char* path)
     memcpy(getPrimMateialBuffer(), primMat.data(), primCount*sizeof(uint32_t));
     memcpy(getMaterialBuffer(), materials.data(), materials.size()*sizeof(Material));
 
+    calculateBounds();
+
     m_hasTexcoord = true;
 
     logPrintf(LogLevel::kVerbose, "Finished loading '%s' prim=%u, vtx=%u, tex=%u\n", path, primCount, srcVertices.size()/3, srcTexcoords.size()/2);
 }
+
+void Mesh::calculateBounds()
+{
+    BBox bbox = BBox::init();
+
+    for (uint32_t i = 0; i < m_vertexCount; i++) {
+        bbox.grow(m_positions[i]);
+    }
+
+    m_bbox = bbox;
+}
+
 
 template<typename T, typename R>
 void Mesh::intersect(T& hitPacket, const RayPacketMask& mask, const R& packet, const uint32_t* primIndices, uint32_t primCount) const
@@ -412,7 +430,8 @@ void Mesh::intersect(T& hitPacket, const RayPacketMask& mask, const R& packet, c
 
                 auto maskHit = intr.t.greaterThanOrEqual(kEpsilon) & intr.t.lessThan(hit.t);
 
-                maskHit = maskHit & mask.masks[v];
+// ?? because mask is already given to intersectTriangle
+//                maskHit = maskHit & mask.masks[v];
 
                 if (maskHit.anyTrue()) {
                     auto& mat = getMaterial(getPrimToMaterial(primIndex));
@@ -446,57 +465,57 @@ void Mesh::intersect(T& hitPacket, const RayPacketMask& mask, const R& packet, c
 template void Mesh::intersect<SingleRayHitPacket, SingleRayPacket>(SingleRayHitPacket& hitPacket, const RayPacketMask& mask, const SingleRayPacket& packet, const uint32_t* primIndices, uint32_t primCount) const;
 template void Mesh::intersect<RayHitPacket, RayPacket>(RayHitPacket& hitPacket, const RayPacketMask& mask, const RayPacket& packet, const uint32_t* primIndices, uint32_t primCount) const;
 
-template<typename R>
-bool Mesh::occluded(const R& ray, const uint32_t* primIndices, uint32_t primCount) const
+template<typename T, typename R>
+T Mesh::occluded(const RayPacketMask& mask, const R& packet, const uint32_t* primIndices, uint32_t primCount) const
 {
 #if 1
-    Vector3f p[Mesh::kVertexCountPerPrim][SoaConstants::kLaneCount];
+    if constexpr (std::is_same<R, SingleRayPacket>::value) {
+        Vector3f p[Mesh::kVertexCountPerPrim][SoaConstants::kLaneCount];
 
-    // TODO: memset p with 0?
+        // TODO: memset p with 0?
 
-    for (uint32_t i = 0; i < primCount; i++) {
-        uint32_t indexBase = primIndices[i]*Mesh::kVertexCountPerPrim;
+        for (uint32_t i = 0; i < primCount; i++) {
+            uint32_t indexBase = primIndices[i]*Mesh::kVertexCountPerPrim;
 
-        for (uint32_t j = 0; j < Mesh::kVertexCountPerPrim; j++) {
-            uint32_t v = getIndex(indexBase + j);
-            p[j][i] = getPosition(v);
+            for (uint32_t j = 0; j < Mesh::kVertexCountPerPrim; j++) {
+                uint32_t v = getIndex(indexBase + j);
+                p[j][i] = getPosition(v);
+            }
         }
-    }
 
-    SoaVector3f p0(&p[0][0]);
-    SoaVector3f p1(&p[1][0]);
-    SoaVector3f p2(&p[2][0]);
+        SoaVector3f p0(&p[0][0]);
+        SoaVector3f p1(&p[1][0]);
+        SoaVector3f p2(&p[2][0]);
 
-    SoaMask mask((1 << primCount) - 1);
+        SoaMask mask((1 << primCount) - 1);
 
-    // TODO use intersectTriangle dedicated for occluded
-    auto intr = intersectTriangle(mask, ray.org, ray.dir, ray.swapXZ, ray.swapYZ, p0, p1, p2);
+        // TODO use intersectTriangle dedicated for occluded
+        auto intr = intersectTriangle(mask, packet.ray.org, packet.ray.dir, packet.ray.swapXZ, packet.ray.swapYZ, p0, p1, p2);
 
-    mask = intr.t.greaterThanOrEqual(kEpsilon) & intr.t.lessThan(ray.maxT);
+        mask = intr.t.greaterThanOrEqual(kEpsilon) & intr.t.lessThan(packet.ray.maxT);
 
-    for (auto bits = mask.ballot(); bits; bits &= bits - 1) {
-        auto index = bitScanForward(bits);
-        auto& mat = getMaterial(getPrimToMaterial(primIndices[index]));
-        if (mat.alphaTest) {
-            uint32_t indexBase = primIndices[index]*Mesh::kVertexCountPerPrim;
+        for (auto bits = mask.ballot(); bits; bits &= bits - 1) {
+            auto index = bitScanForward(bits);
+            auto& mat = getMaterial(getPrimToMaterial(primIndices[index]));
+            if (mat.alphaTest) {
+                uint32_t indexBase = primIndices[index]*Mesh::kVertexCountPerPrim;
 
-            auto v0 = getTexcoordIndex(indexBase + 0);
-            auto v1 = getTexcoordIndex(indexBase + 1);
-            auto v2 = getTexcoordIndex(indexBase + 2);
+                auto v0 = getTexcoordIndex(indexBase + 0);
+                auto v1 = getTexcoordIndex(indexBase + 1);
+                auto v2 = getTexcoordIndex(indexBase + 2);
 
-            const auto& t0 = getTexcoord(v0);
-            const auto& t1 = getTexcoord(v1);
-            const auto& t2 = getTexcoord(v2);
-            auto uv = intr.i.getLane(index)*t0 + intr.j.getLane(index)*t1 + intr.k.getLane(index)*t2;
+                const auto& t0 = getTexcoord(v0);
+                const auto& t1 = getTexcoord(v1);
+                const auto& t2 = getTexcoord(v2);
+                auto uv = intr.i.getLane(index)*t0 + intr.j.getLane(index)*t1 + intr.k.getLane(index)*t2;
 
-            if (!mat.testAlpha(uv))
-                continue;
+                if (!mat.testAlpha(uv))
+                    continue;
+            }
+            return true;
         }
-        return true;
-    }
 
-    return false;
-
+        return false;
 #else
     for (uint32_t i = 0; i < primCount; i++) {
         auto primIndex = primIndices[i];
@@ -541,9 +560,58 @@ bool Mesh::occluded(const R& ray, const uint32_t* primIndices, uint32_t primCoun
 
     return false;
 #endif
+    } else if constexpr (std::is_same<R, RayPacket>::value) {
+        // Mask is true if occluded; opposite to exec mask
+        RayPacketMask res = mask;
+
+        for (uint32_t i = 0; i < primCount; i++) {
+            auto primIndex = primIndices[i];
+            uint32_t indexBase = primIndex*Mesh::kVertexCountPerPrim;
+            // TODO skip two-level indircection
+            uint32_t v0 = getIndex(indexBase + 0);
+            uint32_t v1 = getIndex(indexBase + 1);
+            uint32_t v2 = getIndex(indexBase + 2);
+            const Vector3f& p0 = getPosition(v0);
+            const Vector3f& p1 = getPosition(v1);
+            const Vector3f& p2 = getPosition(v2);
+            for (uint32_t v = 0; v < RayPacket::kVectorCount; v++) {
+                if (mask.masks[i].allTrue()) continue;
+
+                auto& ray = packet.rays[v];
+                auto intr = intersectTriangle(mask.masks[v].computeNot(), ray.org, ray.dir, ray.swapXZ, ray.swapYZ, p0, p1, p2);
+
+                auto maskHit = intr.t.greaterThanOrEqual(kEpsilon) & intr.t.lessThan(ray.maxT);
+
+                if (maskHit.anyTrue()) {
+                    auto& mat = getMaterial(getPrimToMaterial(primIndex));
+
+                    if (mat.alphaTest) {
+        // access to texcoord index can be removed??
+                        v0 = getTexcoordIndex(indexBase + 0);
+                        v1 = getTexcoordIndex(indexBase + 1);
+                        v2 = getTexcoordIndex(indexBase + 2);
+
+                        auto& t0 = getTexcoord(v0);
+                        auto& t1 = getTexcoord(v1);
+                        auto& t2 = getTexcoord(v2);
+                        auto uv = intr.i*t0 + intr.j*t1 + intr.k*t2;
+
+                        maskHit = mat.testAlpha(maskHit, uv);
+                    }
+                }
+                res.computeOrSelf(v, maskHit);
+            }
+
+            if (res.allTrue())
+                return res;
+        }
+
+        return res;
+    }
 }
 
-template bool Mesh::occluded<Ray>(const Ray& ray, const uint32_t* primIndices, uint32_t primCount) const;
+template bool Mesh::occluded<bool, SingleRayPacket>(const RayPacketMask&, const SingleRayPacket&, const uint32_t*, uint32_t) const;
+template RayPacketMask Mesh::occluded<RayPacketMask, RayPacket>(const RayPacketMask&, const RayPacket&, const uint32_t*, uint32_t) const;
 
 
 template<typename T, typename U>

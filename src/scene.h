@@ -17,16 +17,12 @@ public:
     void intersect(T& intr, const R& packet, const TraverseStackCache* stackCache = nullptr) const;
 
     template<typename T, typename R>
-    T occluded(const R& packet) const;
+    T occluded(const RayPacketMask& mask, const R& packet) const;
 
     template<typename T, typename U>
     void getSurfaceProperties(T& properties, const U& hit) const;
 
-    void add(Bvh* bvh) { 
-        bvh->m_mesh.m_id = m_bvh.size();
-        m_bvh.push_back(bvh); 
-    } // shared ptr?
-
+    void add(Bvh* bvh);
 
     bool isLightAvailable(LightType type) const {
         return (m_availableLights & (1 << (int32_t)type)) != 0;
@@ -58,6 +54,10 @@ public:
         m_bvh[0]->createStackCache(stackCache, pos, dir);
     }
 
+    float getRadius() const {
+        return m_radius;
+    }
+
 private:
     // TODO remove std::vector
     std::vector<Bvh*> m_bvh;
@@ -66,6 +66,9 @@ private:
     uint32_t m_availableLights;
     DirectionalLight m_directionalLight;
     InfiniteAreaLight m_infiniteAreaLight;
+
+    BBox m_bbox;
+    float m_radius;
 };
 
 

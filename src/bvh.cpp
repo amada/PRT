@@ -300,7 +300,7 @@ template void Bvh::intersect<RayHitPacket, RayPacket>(RayHitPacket&, const RayPa
 
 
 template<typename T, typename R>
-T Bvh::occluded(const R& ray) const
+T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
 {
     const uint32_t kStackSize = 64;
     int32_t current = 0;
@@ -308,21 +308,42 @@ T Bvh::occluded(const R& ray) const
     nodes[current] = &m_nodes[0];
 
     bool reverseStackOrder[3];
-    SoaMask masks[kStackSize];
-    if constexpr (std::is_same<R, Ray>::value) {
+    RayPacketMask masks[kStackSize];
+
+    if constexpr (std::is_same<R, SingleRayPacket>::value) {
         for (uint32_t i = 0; i < VectorConstants::kDimensions; i++)
-            reverseStackOrder[i] = ray.dir.v[i] < 0.0f;
-    } else if constexpr (std::is_same<R, SoaRay>::value) {
-        masks[current].setAll(true);
+            reverseStackOrder[i] = packet.ray.dir.v[i] < 0.0f;
+    } else if constexpr (std::is_same<R, RayPacket>::value) {
+        masks[current] = _mask;
         for (uint32_t i = 0; i < VectorConstants::kDimensions; i++)
-            reverseStackOrder[i] = ray.avgDir.v[i] < 0.0f;
+            reverseStackOrder[i] = packet.avgDir.v[i] < 0.0f;
     }
 
     do {
         auto node = nodes[current];
         auto mask = masks[current];
 
-        bool hit = node->bbox.intersect(ray.org, ray.dir, ray.invDir, ray.maxT);
+        bool hit;
+
+        if constexpr (std::is_same<R, SingleRayPacket>::value) {
+            hit = node->bbox.intersect(packet.ray.org, packet.ray.dir, packet.ray.invDir, packet.ray.maxT);
+        } else if constexpr (std::is_same<R, RayPacket>::value) {
+            // TODO: for loop packet.count
+            for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
+                auto bbox_mask = node->bbox.intersect(packet.rays[i].org, packet.rays[i].dir, packet.rays[i].invDir, packet.rays[i].maxT);
+                mask.masks[i] = mask.masks[i] | bbox_mask.computeNot();
+                // As mask in occluded indicates whether ray is occluded, bbox intersection mask must be flipped as follows
+                // ... this can be confusing as flipped bbox mask doesn't mean ray is occluded and mask is flipped when mask is supplied to triangle intersection calculation
+                //
+                // mask + bbox -> mask
+                // F + F -> T
+                // F + T -> F
+                // T + F -> T
+                // T + T -> T
+            }
+
+            hit = !mask.allTrue();
+        }
 
         int16_t primCount = node->primCount;
         if (!hit) {
@@ -336,7 +357,7 @@ T Bvh::occluded(const R& ray) const
                 nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
                 nodes[current + 1] = node + 1;
             }
-            if constexpr (std::is_same<R, SoaRay>::value) {
+            if constexpr (std::is_same<R, RayPacket>::value) {
                 masks[current + 0] = mask;
                 masks[current + 1] = mask;
             }
@@ -350,15 +371,31 @@ T Bvh::occluded(const R& ray) const
             int32_t primIndexPreMap = node->primOrSecondNodeIndex;
             static_assert(SoaConstants::kLaneCount >= BvhBuildNode::kMaxPrimCountInNode, "Lanes must be more than max primitives in leaf node");
 
-            if (m.occluded(ray, &m_primRemapping[primIndexPreMap], primCount))
-                return true;
+            if constexpr (std::is_same<R, SingleRayPacket>::value) {
+                if (m.occluded<bool, SingleRayPacket>(mask, packet, &m_primRemapping[primIndexPreMap], primCount))
+                    return true;
+            } else if constexpr (std::is_same<R, RayPacket>::value) {
+                auto omask = m.occluded<RayPacketMask, RayPacket>(mask, packet, &m_primRemapping[primIndexPreMap], primCount);
+                if (omask.allTrue())
+                    return omask;
+            }
+
         }
 
         current--;
     } while (current >= 0);
 
-    return false;
+    if constexpr (std::is_same<R, SingleRayPacket>::value) {
+        return false;
+    } else if constexpr (std::is_same<R, RayPacket>::value) {
+        RayPacketMask mask; mask.setAll(false); mask.masks[1].setAll(true);
+        return mask;
+    } 
 }
+
+template bool Bvh::occluded<bool, SingleRayPacket>(const RayPacketMask& mask, const SingleRayPacket&) const;
+template RayPacketMask Bvh::occluded<RayPacketMask, RayPacket>(const RayPacketMask& mask, const RayPacket&) const;
+
 
 void Bvh::createStackCache(TraverseStackCache& stackCache, const Vector3f& pos, const Vector3f& dir) const
 {
@@ -414,9 +451,6 @@ void Bvh::createStackCache(TraverseStackCache& stackCache, const Vector3f& pos, 
 
     PRT_ASSERT(stackCache.size <= TraverseStackCache::kNodeStackCapacity);
 }
-
-
-template bool Bvh::occluded<bool, Ray>(const Ray&) const;
 
 
 } // namespace prt

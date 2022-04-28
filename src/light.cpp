@@ -103,7 +103,7 @@ void InfiniteAreaLight::sample(Vector3f& dir, Vector3f& color, const Vector2f& u
     float phi = kPi*uv.y;
     float sinPhi = std::sin(phi);
 
-    dir = Vector3f(std::cos(theta)*sinPhi, std::cos(phi), std::sin(theta)*sinPhi);
+    dir = normalize(Vector3f(std::cos(theta)*sinPhi, std::cos(phi), std::sin(theta)*sinPhi));
 }
 
 

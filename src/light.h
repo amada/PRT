@@ -30,7 +30,7 @@ public:
     InfiniteAreaLight() = default;
     void init();
     void create(const char* path);
-    void sample(Vector3f& dir, Vector3f& color, const Vector2f& u) const;
+    void sample(Vector3f& dir, Vector3f& intensity, const Vector2f& u) const;
 
     bool isValid() const { return m_image.isValid(); }
 

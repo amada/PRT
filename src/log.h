@@ -5,6 +5,7 @@ namespace prt
 
 enum class LogLevel
 {
+    kInfo,
     kVerbose,
     kError
 };

@@ -107,6 +107,10 @@ inline bool _neon_anytrue(maskvec_t m) {
     return vmaxvq_u32(m) != 0; // Should be safe as long as mask is used via vecmath functions
 }
 
+inline bool _neon_alltrue(maskvec_t m) {
+    return vminvq_u32(m) != 0;
+}
+
 template<typename V, typename T>
 inline T _neon_getLane(V v, int32_t lane) {
     union {
@@ -387,15 +391,13 @@ public:
 #endif
     }
 
-#if 0
     bool allTrue() const {
 #if defined(R_NEON)
-        return false;
+        return _neon_alltrue(m_mask);
 #elif defined(R_AVX4L) || defined(R_AVX8L)
         return ballot() == kAllTrue;
 #endif
     }
-#endif
 
 private:
     maskvec_t m_mask;
@@ -1025,6 +1027,8 @@ struct BBox
     void grow(const BBox& bbox);
     void grow(const Vector3f& p);
     float surfaceArea() const;
+
+    Vector3f center() const { return 0.5f*(upper + lower); }
 
     Vector3f lower;
     Vector3f upper;

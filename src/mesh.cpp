@@ -562,7 +562,7 @@ T Mesh::occluded(const RayPacketMask& mask, const R& packet, const uint32_t* pri
 #endif
     } else if constexpr (std::is_same<R, RayPacket>::value) {
         // Mask is true if occluded; opposite to exec mask
-        RayPacketMask res = mask;
+        RayPacketMask res(0);
 
         for (uint32_t i = 0; i < primCount; i++) {
             auto primIndex = primIndices[i];
@@ -575,10 +575,10 @@ T Mesh::occluded(const RayPacketMask& mask, const R& packet, const uint32_t* pri
             const Vector3f& p1 = getPosition(v1);
             const Vector3f& p2 = getPosition(v2);
             for (uint32_t v = 0; v < RayPacket::kVectorCount; v++) {
-                if (mask.masks[i].allTrue()) continue;
+                if (!mask.masks[v].anyTrue()) continue;
 
                 auto& ray = packet.rays[v];
-                auto intr = intersectTriangle(mask.masks[v].computeNot(), ray.org, ray.dir, ray.swapXZ, ray.swapYZ, p0, p1, p2);
+                auto intr = intersectTriangle(mask.masks[v], ray.org, ray.dir, ray.swapXZ, ray.swapYZ, p0, p1, p2);
 
                 auto maskHit = intr.t.greaterThanOrEqual(kEpsilon) & intr.t.lessThan(ray.maxT);
 
@@ -598,12 +598,9 @@ T Mesh::occluded(const RayPacketMask& mask, const R& packet, const uint32_t* pri
 
                         maskHit = mat.testAlpha(maskHit, uv);
                     }
+                    res.computeOrSelf(v, maskHit);
                 }
-                res.computeOrSelf(v, maskHit);
             }
-
-            if (res.allTrue())
-                return res;
         }
 
         return res;

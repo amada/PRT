@@ -67,21 +67,21 @@ template void Scene::intersect<RayHitPacket, RayPacket>(RayHitPacket&, const Ray
 
 
 template<typename T, typename R>
-T Scene::occluded(const RayPacketMask& _mask, const R& packet) const
+T Scene::occluded(const RayPacketMask& mask, const R& packet) const
 {
-    auto mask = _mask;
+    auto occludeMask = mask.computeNot();
     // TODO bbox/as for bvhs
     for (auto &bvh : m_bvh) {
         // TODO ray transform per BVH
 
-        auto res = bvh->occluded<T, R>(mask, packet);
+        auto res = bvh->occluded<T, R>(occludeMask.computeNot(), packet);
         if constexpr (std::is_same<R, SingleRayPacket>::value) {
             if (res)
                 return res;
         } else if constexpr (std::is_same<R, RayPacket>::value) {
-            mask = mask | res;
-            if (mask.allTrue())
-                return mask;
+            occludeMask = occludeMask | res;
+            if (occludeMask.allTrue())
+                return occludeMask;
         }
 
     }
@@ -89,7 +89,7 @@ T Scene::occluded(const RayPacketMask& _mask, const R& packet) const
     if constexpr (std::is_same<R, SingleRayPacket>::value) {
         return false;
     } else if constexpr (std::is_same<R, RayPacket>::value) {
-        return mask;
+        return occludeMask;
     }
 }
 

@@ -319,9 +319,13 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
             reverseStackOrder[i] = packet.avgDir.v[i] < 0.0f;
     }
 
+    RayPacketMask occludeMask = _mask.computeNot();
+
     do {
         auto node = nodes[current];
         auto mask = masks[current];
+
+        mask = mask & occludeMask.computeNot();
 
         bool hit;
 
@@ -331,18 +335,10 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
             // TODO: for loop packet.count
             for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
                 auto bbox_mask = node->bbox.intersect(packet.rays[i].org, packet.rays[i].dir, packet.rays[i].invDir, packet.rays[i].maxT);
-                mask.masks[i] = mask.masks[i] | bbox_mask.computeNot();
-                // As mask in occluded indicates whether ray is occluded, bbox intersection mask must be flipped as follows
-                // ... this can be confusing as flipped bbox mask doesn't mean ray is occluded and mask is flipped when mask is supplied to triangle intersection calculation
-                //
-                // mask + bbox -> mask
-                // F + F -> T
-                // F + T -> F
-                // T + F -> T
-                // T + T -> T
+                mask.computeAndSelf(i, bbox_mask);
             }
 
-            hit = !mask.allTrue();
+            hit = mask.anyTrue();
         }
 
         int16_t primCount = node->primCount;
@@ -376,8 +372,10 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
                     return true;
             } else if constexpr (std::is_same<R, RayPacket>::value) {
                 auto omask = m.occluded<RayPacketMask, RayPacket>(mask, packet, &m_primRemapping[primIndexPreMap], primCount);
-                if (omask.allTrue())
-                    return omask;
+
+                occludeMask = occludeMask | omask;
+                if (occludeMask.allTrue())
+                    return occludeMask;
             }
 
         }
@@ -388,8 +386,7 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
     if constexpr (std::is_same<R, SingleRayPacket>::value) {
         return false;
     } else if constexpr (std::is_same<R, RayPacket>::value) {
-        RayPacketMask mask; mask.setAll(false); mask.masks[1].setAll(true);
-        return mask;
+        return occludeMask;
     } 
 }
 

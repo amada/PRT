@@ -85,6 +85,15 @@ struct RayPacket
     static const uint32_t kVectorCount = kSize/SoaConstants::kLaneCount;
     SoaRay rays[kVectorCount];
     Vector3f avgDir;
+
+    RayPacket() = default;
+    RayPacket(const Vector3f* org, const Vector3f* dir) {
+        for (uint32_t i = 0; i < kVectorCount; i++) {
+            auto& ray = rays[i];
+            ray.org = SoaVector3f(&org[i*SoaConstants::kLaneCount]);
+            ray.dir = SoaVector3f(&dir[i*SoaConstants::kLaneCount]);
+        }
+    }
 };
 
 
@@ -131,6 +140,14 @@ struct RayPacketMask
 
     void computeOrSelf(uint32_t v, const SoaMask& mask) {
         masks[v] = masks[v] | mask;
+    }
+
+    RayPacketMask computeNot() const {
+        RayPacketMask result;
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
+            result.masks[i] = masks[i].computeNot();
+        }
+        return result;
     }
 
     void setAll(bool b) {
@@ -205,6 +222,13 @@ struct RayHitPacket
 #ifdef PRT_ENABLE_STATS
     Stats stats;
 #endif
+
+    RayPacketMask generateMask() const {
+        RayPacketMask mask;
+        for (uint32_t i = 0; i < RayPacket::kVectorCount; i++)
+            mask.masks[i] = hits[i].t.notEquals(RayHit::kMissT);
+        return mask;
+    }
 
     void setMaxT(const RayPacket& packet) {
         for (uint32_t i = 0; i < RayPacket::kVectorCount; i++)

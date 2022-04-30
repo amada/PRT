@@ -28,6 +28,9 @@ private:
         const Scene& scene,
         const Vector3f& rayDir, const Vector3f& pos, const SurfaceProperties& prop);
 
+    Vector3f ComputeRadiance(
+        const Scene& scene, const RayHitPacket& hitPacket, const RayPacket& packet);
+
     Random m_rand;
 
     // debug

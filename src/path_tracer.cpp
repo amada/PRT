@@ -40,7 +40,7 @@ Vector3f PathTracer::Trace(const Camera& camera, const Scene& scene, uint32_t x,
     for (uint32_t i = 0; i < samples; i++) {
         auto ray = camera.GenerateJitteredRay(m_rand, x, y);
         SingleRayHitPacket hitPacket;
-        scene.intersect(hitPacket, ray);
+        scene.intersect(hitPacket, SingleRayPacket(ray));
 
         const auto& hit = hitPacket.hit;
         if (hit.isHit()) {
@@ -68,6 +68,11 @@ Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t
 
         RayHitPacket hitPacket;
         scene.intersect(hitPacket, packet, stackCache);
+
+#if 1
+        color = color + ComputeRadiance(scene, hitPacket, packet);
+
+#else
 #ifdef PRT_ENABLE_STATS
         m_stats.merge(hitPacket.stats);
 #endif
@@ -95,11 +100,245 @@ Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t
                 } 
             }
         }
+        #endif
     }
 
     return color;
 }
 
+Vector3f PathTracer::ComputeRadiance(const Scene& scene, const RayHitPacket& hitPacket, const RayPacket& packet)
+{
+    Random& rand = m_rand;
+
+    Vector3f result[RayPacket::kSize];
+    Vector3f beta[RayPacket::kSize];
+
+    for (uint32_t i = 0; i < RayPacket::kSize; i++) {
+        beta[i] = 1.0f;
+        result[i] = 0.0f;
+    }
+
+    Vector3f pos[RayPacket::kSize];
+    Vector3f rayDir[RayPacket::kSize];
+    SurfaceProperties props[RayPacket::kSize];
+    const Material* materials[RayPacket::kSize];
+    Vector3f normals[RayPacket::kSize];
+
+    uint32_t alivePaths = 0;
+
+    for (uint32_t v = 0; v < RayPacket::kVectorCount; v++) {
+        const auto& hit = hitPacket.hits[v];
+        const auto& ray = packet.rays[v];
+        auto vpos = hit.t*ray.dir + ray.org;
+
+        for (uint32_t lane = 0; lane < SoaConstants::kLaneCount; lane++) {
+            RayHit sr;
+            sr.t = hit.t.getLane(lane);
+            sr.i = hit.i.getLane(lane);
+            sr.j = hit.j.getLane(lane);
+            sr.k = hit.k.getLane(lane);
+            sr.primId = hit.primId.getLane(lane);
+            sr.meshId = hit.meshId.getLane(lane);
+
+            auto path = v*SoaConstants::kLaneCount + lane;
+            if (sr.isHit()) {
+                scene.getSurfaceProperties(props[path], sr);
+                materials[path] = props[path].material;
+                normals[path] = materials[path]->sampleBump(props[path]);
+                pos[path] = vpos.getLane(lane);
+                rayDir[path] = ray.dir.getLane(lane);
+                alivePaths++;
+            }
+        }
+    }
+
+    uint32_t depth = 0;
+
+    while (depth < 14) {
+        Vector3f lightDir[RayPacket::kSize];
+        Vector3f lightIntensity[RayPacket::kSize];
+        Vector3f nextRayDir[RayPacket::kSize];
+
+        bool directLighting = false;
+
+        // Generate next scatter ray and occlude ray for direct lighting
+        for (uint32_t path = 0; path < alivePaths; path++) {
+            auto material = materials[path];
+            auto normal = normals[path];
+            auto prop = props[path];
+            
+            if (material->emissive.x != 0) {
+                result[path] = result[path] + beta[path]*material->emissive;
+            }
+
+            if (material->reflectionType == ReflectionType::kDiffuse) {
+                float r2 = rand.generate();
+                float r2sq = std::sqrt(r2);
+                float r1 = rand.generate();
+
+                // TODO: should be able to use derivatives in prop
+                Vector3f u = (fabsf(normal.x) > 0.1f) ? Vector3f(0, 1.0f, 0.0f) : Vector3f(1.0f, 0, 0);
+                auto tangent = normalize(cross(normal, u));
+                auto binormal = normalize(cross(tangent, normal));
+
+                float theta = 2.0f*kPi*r1;
+                // Cosine-weighted distribution
+                nextRayDir[path] = r2sq*std::cos(theta) * binormal + r2sq*std::sin(theta)*tangent + (1 - r2)*normal;
+
+                beta[path] = beta[path]*material->sampleDiffuse(prop.uv);
+
+                if (scene.isLightAvailable(LightType::kInfiniteArea)) {
+                    auto& light = scene.getInfiniteAreaLight();
+                    light.sample(lightDir[path], lightIntensity[path], Vector2f(rand.generate(), rand.generate()));
+                    directLighting = true;
+                } else if (scene.isLightAvailable(LightType::kDirectional)) {
+                    auto light = scene.getDirectionalLight();
+                    lightDir[path] = light.dir;
+                    lightIntensity[path] = light.intensity;
+                    directLighting = true;
+                }
+            } else if (material->reflectionType == ReflectionType::kSpecular) {
+                float r2 = rand.generate();
+                float r2sq = std::sqrt(r2);
+                float r1 = rand.generate();
+                Vector3f u = (fabsf(normal.x) > 0.1f) ? Vector3f(0, 1.0f, 0.0f) : Vector3f(1.0f, 0, 0);
+                auto tangent = normalize(cross(normal, u));
+                auto binormal = normalize(cross(tangent, normal));
+
+                float theta = 2.0f*kPi*r1;
+                // Cosine-weighted distribution
+                auto diffuseDir = r2sq*std::cos(theta) * binormal + r2sq*std::sin(theta)*tangent + (1 - r2)*normal;
+                auto rdir = rayDir[path];
+                auto reflectDir = rdir - normal*2*dot(normal, rdir);
+
+                nextRayDir[path] = 0.9f*reflectDir + 0.1f*diffuseDir;
+            }
+        }
+
+        const float kFar = 2.0f*scene.getRadius();
+        const float kEpsilon = 0.0008f; // TODO may want this to be relative value to kFar
+
+        // Trace occlude rays
+        if (directLighting) {
+            // Whether dispatching ray packet or single ray
+            bool grouping = (alivePaths & 0xf) > 2;
+            if (grouping) {
+                RayPacket shadowRay;
+
+                uint32_t maskBits = 0;
+                uint32_t dirCount = 0;
+                Vector3f avgDir(0.0f);
+
+                for (uint32_t path = 0; path < alivePaths; path++) {
+                    avgDir = avgDir + lightDir[path]; // TODO use vector reduction
+                }
+
+                auto vectorCount = (alivePaths + SoaConstants::kLaneCount - 1)/SoaConstants::kLaneCount;
+                for (uint32_t v = 0; v < vectorCount; v++) {
+                    auto& ray = shadowRay.rays[v];
+                    auto vlightDir = SoaVector3f(&lightDir[v*SoaConstants::kLaneCount]);
+                    auto vpos = SoaVector3f(&pos[v*SoaConstants::kLaneCount]);
+                    ray.maxT = kFar - kEpsilon;
+                    ray.org = vpos + SoaFloat(kFar)*vlightDir;
+                    ray.dir = vlightDir*-1.0f;
+                    ray.prepare();
+                }
+
+                maskBits = (1 << alivePaths) - 1;
+
+                shadowRay.avgDir = avgDir/alivePaths;
+
+#ifdef PRT_ENABLE_STATS
+                m_stats.raysTraced += alivePaths;
+                m_stats.occludedTraced += alivePaths;
+#endif                
+
+                auto omask = scene.occluded<RayPacketMask, RayPacket>(RayPacketMask(maskBits), shadowRay);
+
+                for (uint32_t v = 0; v < RayPacket::kVectorCount; v++) {
+                    for (auto bits = omask.masks[v].computeNot().ballot(); bits; bits &= bits - 1) {
+                        auto index = bitScanForward(bits);
+                        auto path = v*SoaConstants::kLaneCount + index;
+                        auto lightRadiance = lightIntensity[path]*std::max(dot(lightDir[path], normals[path]), 0.0f)/kPi;
+                        result[path] = result[path] + beta[path]*lightRadiance;
+                    }
+                }
+            } else {
+                for (uint32_t i = 0; i < alivePaths; i++) {
+                    Ray shadowRay;
+                    shadowRay.maxT = kFar - kEpsilon;
+                    shadowRay.org = pos[i] + kFar*lightDir[i];
+                    shadowRay.dir = -lightDir[i];
+
+                    shadowRay.prepare();
+#ifdef PRT_ENABLE_STATS
+                    m_stats.raysTraced++;
+                    m_stats.occludedTraced++;
+#endif
+        
+                    if (!scene.occluded<bool, SingleRayPacket>(RayPacketMask(), shadowRay)) {
+                        auto lightRadiance = lightIntensity[i]*std::max(dot(lightDir[i], normals[i]), 0.0f)/kPi;
+                        result[i] = result[i] + beta[i]*lightRadiance;
+                    }
+                }
+            }
+        }
+
+        // Remove paths according Russian roulette and trace scatter rays
+        uint32_t ci = 0; // compacted index;
+        for (uint32_t i = 0; i < alivePaths; i++) {
+            // Russian roulette
+            if (depth > 4) {
+                float q = std::max(0.05f, 1.0f - length(beta[i]));
+                if (rand.generate() < q) {
+                    continue;
+                } else {
+                    beta[ci] = beta[i]/(1.0f - q);
+                }
+            }
+
+            auto dir = normalize(nextRayDir[i]);
+
+            Ray ray;
+            ray.maxT = kFar;
+            ray.org = pos[i];
+            ray.dir = dir;
+            ray.prepare();
+
+#ifdef PRT_ENABLE_STATS
+            m_stats.raysTraced++;;
+#endif
+            SingleRayHitPacket hitPacket;
+            scene.intersect(hitPacket, SingleRayPacket(ray));
+
+            const auto& hit = hitPacket.hit;
+            if (hit.isHit()) {
+                scene.getSurfaceProperties(props[ci], hit);
+
+                pos[ci] = hit.t*ray.dir + ray.org;
+                normals[ci] = props[i].normal;
+                materials[ci] = props[i].material;
+                normals[ci] = materials[ci]->sampleBump(props[ci]);
+                rayDir[ci] = dir;
+
+                ci++;
+            }
+        }
+
+        if (ci == 0)
+            break;
+
+        alivePaths = ci;
+
+        depth++;
+    }
+
+    Vector3f res(0.0f);
+    for (uint32_t i = 0; i < RayPacket::kSize; i++) {
+        res = res + result[i];
+    }
+    return res;
+}
 
 Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir, const Vector3f& apos, const SurfaceProperties& aprop)
 {
@@ -181,7 +420,9 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const Vector3f& rayDir,
                     shadowRay.org = SoaVector3f(pos) - (SoaFloat(kFar)*shadowRay.dir);
                     shadowRay.prepare();
 
-                    RayPacket packet = {{shadowRay}, avgDir/RayPacket::kSize};
+                    RayPacket packet;
+                    packet.rays[0] = shadowRay;
+                    packet.avgDir = avgDir/RayPacket::kSize;
 
                     RayPacketMask mask(~0xf); // 4 rays;
 

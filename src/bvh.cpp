@@ -179,19 +179,32 @@ void Bvh::build(Mesh&& mesh)
 
     LinearBvhNode* nodes = new LinearBvhNode[context.nodeCount];
 
+#ifdef TRI_VECTOR
+    uint32_t primNodeCount = 0;
+#endif
     logPrintf(LogLevel::kVerbose, "LinearBvhNode (count=%u, size=%.3fMiB)\n", context.nodeCount, context.nodeCount*sizeof(LinearBvhNode)/1024.0f/1024.0f);
     for (uint32_t i = 0; i < sizeof(context.primCountInNode)/sizeof(context.primCountInNode[0]); i++) {
         logPrintf(LogLevel::kVerbose, "([%u] %u) ", i + 1, context.primCountInNode[i]);
+#ifdef TRI_VECTOR
+        primNodeCount += context.primCountInNode[i]; // ??? verify this
+#endif
     }
     logPrintf(LogLevel::kVerbose, "\n");
 
+#ifdef TRI_VECTOR
+    m_triangleVectors = new TriangleVector[primNodeCount];
+#endif
+    int32_t triVectorIndex = 0;
     int32_t index = 0;
-    buildLinearBvhNodes(nodes, &index, rootBuildNode);
+    buildLinearBvhNodes(nodes, &index, rootBuildNode, &triVectorIndex);
 
+#ifdef TRI_VECTOR
+    logPrintf(LogLevel::kVerbose, "TriangleVector %d\n", triVectorIndex);
+#endif
     m_nodes = nodes;
 }
 
-void Bvh::buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode* node)
+void Bvh::buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode* node, int32_t* triVectorIndex)
 {
     LinearBvhNode& l = nodes[*index];
     (*index)++;
@@ -201,16 +214,171 @@ void Bvh::buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode
 
     if (node->m_primIndex == BvhBuildNode::kInteriorNode) {
         l.primCount = LinearBvhNode::kInternalNode;
-        buildLinearBvhNodes(nodes, index, node->m_children[0]);
+        buildLinearBvhNodes(nodes, index, node->m_children[0], triVectorIndex);
 
         l.primOrSecondNodeIndex = *index;
-        buildLinearBvhNodes(nodes, index, node->m_children[1]);
+        buildLinearBvhNodes(nodes, index, node->m_children[1], triVectorIndex);
     } else {
-        l.primOrSecondNodeIndex = node->m_primIndex;
-        l.primCount = node->m_primCount;
+        auto primRemapIndex = node->m_primIndex;
+        auto primCount = node->m_primCount;
+
+        l.primOrSecondNodeIndex = primRemapIndex;
+        l.primCount = primCount;
+#ifdef TRI_VECTOR
+        auto& m = m_mesh;
+
+        Vector3f p[Mesh::kVertexCountPerPrim][SoaConstants::kLaneCount];
+        Vector2f uv[Mesh::kVertexCountPerPrim][SoaConstants::kLaneCount];
+
+        int32_t alphaTest[TriangleVector::kSize];
+
+        for (uint32_t i = 0; i < primCount; i++) {
+            uint32_t indexBase = m_primRemapping[primRemapIndex + i]*Mesh::kVertexCountPerPrim;
+
+            auto mat = m.getMaterial(m.getPrimToMaterial(m_primRemapping[primRemapIndex + i]));
+            alphaTest[i] = mat.alphaTest;
+
+            for (uint32_t j = 0; j < Mesh::kVertexCountPerPrim; j++) {
+                uint32_t v = m.getIndex(indexBase + j);
+                p[j][i] = m.getPosition(v);
+                v = m.getTexcoordIndex(indexBase + j);
+                uv[j][i] = m.getTexcoord(v);
+            }
+        }
+
+        auto& triVector = m_triangleVectors[*triVectorIndex];
+        triVector.p0 = SoaVector3f(&p[0][0]);
+        triVector.p1 = SoaVector3f(&p[1][0]);
+        triVector.p2 = SoaVector3f(&p[2][0]);
+        triVector.uv0 = SoaVector2f(&uv[0][0]);
+        triVector.uv1 = SoaVector2f(&uv[1][0]);
+        triVector.uv2 = SoaVector2f(&uv[2][0]);
+
+        memcpy(&triVector.alphaTest[0], alphaTest, sizeof(alphaTest));
+
+        l.triVectorIndex = *triVectorIndex;
+        (*triVectorIndex)++;
+#endif
     }
 
     delete node;
+}
+
+enum IntersectMode {kNearest, kOcclude};
+template<IntersectMode mode>
+inline bool intersectSingleRay(const TriangleVector& tri, SingleRayHitPacket* _hitPacket, const SingleRayPacket& packet, const Mesh& m, const uint32_t* primIndices, uint32_t primCount, float epsilon, float maxT)
+{
+    auto& p0 = tri.p0;
+    auto& p1 = tri.p1;
+    auto& p2 = tri.p2;
+
+    SoaMask mask((1 << primCount) - 1);
+
+    auto intr = intersectTriangle(mask, packet.ray.org, packet.ray.dir, packet.ray.swapXZ, packet.ray.swapYZ, p0, p1, p2);
+
+    mask = intr.t.greaterThanOrEqual(epsilon) & intr.t.lessThan(maxT);
+
+    float nearestT = std::numeric_limits<float>::max();
+    int32_t nearestIndex = -1;
+
+    for (auto bits = mask.ballot(); bits; bits &= bits -1) {
+        auto index = bitScanForward(bits);
+
+        if (tri.alphaTest[index]) {
+            auto primIndex = primIndices[index];
+            auto& mat = m.getMaterial(m.getPrimToMaterial(primIndex));
+
+            auto uv0 = tri.uv0.getLane(index);
+            auto uv1 = tri.uv1.getLane(index);
+            auto uv2 = tri.uv2.getLane(index);
+
+            auto uv = intr.i.getLane(index)*uv0 + intr.j.getLane(index)*uv1 + intr.k.getLane(index)*uv2;
+
+            if (!mat.testAlpha(uv))
+                continue;
+        }
+
+        if constexpr (mode == kNearest) {
+            auto t = intr.t.getLane(index);
+            if (nearestT > t) {
+                nearestT = t;
+                nearestIndex = index;
+            }
+        } else {
+            return true;
+        }
+    }
+
+    if constexpr (mode == kNearest) {
+        if (nearestIndex >= 0) {
+            auto& hitPacket = *_hitPacket;
+            hitPacket.hit.t = nearestT;
+            hitPacket.hit.i = intr.i.getLane(nearestIndex);
+            hitPacket.hit.j = intr.j.getLane(nearestIndex);
+            hitPacket.hit.k = intr.k.getLane(nearestIndex);
+            hitPacket.hit.primId = primIndices[nearestIndex];
+            hitPacket.hit.meshId = m.getId();
+        }
+    }
+
+    return false;
+}
+
+template<IntersectMode mode>
+inline RayPacketMask intersectRayPacket(const TriangleVector& tri, const RayPacketMask& mask, RayHitPacket* _hitPacket, const RayPacket& packet, const Mesh& m, const uint32_t* primIndices, uint32_t primCount, float epsilon)
+{
+    auto& hitPacket = *_hitPacket;
+    RayPacketMask res(0);
+
+    for (uint32_t i = 0; i < primCount; i++) {
+        auto p0 = tri.p0.broadcast(i);
+        auto p1 = tri.p1.broadcast(i);
+        auto p2 = tri.p2.broadcast(i);
+
+        for (uint32_t v = 0; v < RayPacket::kVectorCount; v++) {
+//            if (!mask.masks[v].anyTrue()) continue;
+
+            auto& hit = hitPacket.hits[v];
+            auto& ray = packet.rays[v];
+            auto intr = intersectTriangle(mask.masks[v], ray.org, ray.dir, ray.swapXZ, ray.swapYZ, p0, p1, p2);
+
+            SoaMask maskHit;
+            if constexpr (mode == kNearest) {
+                maskHit = intr.t.greaterThanOrEqual(epsilon) & intr.t.lessThan(hit.t);
+            } else if constexpr (mode == kOcclude) {
+                maskHit = intr.t.greaterThanOrEqual(epsilon) & intr.t.lessThan(ray.maxT);
+            }
+
+            if (maskHit.anyTrue()) {
+                auto primIndex = primIndices[i];
+
+                if (tri.alphaTest[i]) {
+                    auto& mat = m.getMaterial(m.getPrimToMaterial(primIndex));
+
+                    auto uv0 = tri.uv0.getLane(i); // Should store AOS in TriangleVector or do SIMD computation?
+                    auto uv1 = tri.uv1.getLane(i);
+                    auto uv2 = tri.uv2.getLane(i);
+
+                    auto uv = intr.i*uv0 + intr.j*uv1 + intr.k*uv2;
+
+                    maskHit = mat.testAlpha(maskHit, uv);
+                }
+
+                if constexpr (mode == kNearest) {
+                    hit.t = select(hit.t, intr.t, maskHit);
+                    hit.i = select(hit.i, intr.i, maskHit);
+                    hit.j = select(hit.j, intr.j, maskHit);
+                    hit.k = select(hit.k, intr.k, maskHit);
+                    hit.primId = select(hit.primId, primIndex, maskHit);
+                    hit.meshId = select(hit.meshId, m.getId(), maskHit);
+                } else if constexpr (mode == kOcclude) {
+                    res.computeOrSelf(v, maskHit);
+                }
+            }
+        }
+    }
+
+    return res;
 }
 
 template<typename T, typename R>
@@ -239,6 +407,14 @@ void Bvh::intersect(T& hitPacket, const R& packet, const TraverseStackCache* sta
             masks[i].setAll(true);
     }
 
+#define SORT_CHILDREN
+#ifdef SORT_CHILDREN
+    if constexpr (std::is_same<R, SingleRayPacket>::value) {
+        if (!m_nodes[0].bbox.intersect(packet.ray.org, packet.ray.dir, packet.ray.invDir, hitPacket.hit.t))
+            return;
+    }
+#endif
+
     do {
 #ifdef PRT_ENABLE_STATS
         hitPacket.stats.nodesTraversed++;
@@ -249,7 +425,11 @@ void Bvh::intersect(T& hitPacket, const R& packet, const TraverseStackCache* sta
         bool hit;
 
         if constexpr (std::is_same<R, SingleRayPacket>::value) {
+#ifdef SORT_CHILDREN
+            hit = true;
+#else
             hit = node->bbox.intersect(packet.ray.org, packet.ray.dir, packet.ray.invDir, hitPacket.hit.t);
+#endif
         } else if constexpr (std::is_same<R, RayPacket>::value) {
             // TODO: for loop packet.count
             for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
@@ -265,7 +445,50 @@ void Bvh::intersect(T& hitPacket, const R& packet, const TraverseStackCache* sta
         if (!hit) {
             // Do nothing
         } else if (primCount == LinearBvhNode::kInternalNode) {
+#ifdef SORT_CHILDREN
             // Visit closer child first
+            if constexpr (std::is_same<R, SingleRayPacket>::value) {
+                auto node0 = node + 1;
+                auto node1 = &m_nodes[node->primOrSecondNodeIndex];
+
+                auto t0 = node0->bbox.intersect(packet.ray.org, packet.ray.dir, packet.ray.invDir);
+                auto t1 = node1->bbox.intersect(packet.ray.org, packet.ray.dir, packet.ray.invDir);
+
+                auto hit0 = t0 < hitPacket.hit.t;
+                auto hit1 = t1 < hitPacket.hit.t;
+
+                if (!hit0) {
+                    if (hit1) {
+                        nodes[current] = node1;
+                        current++;
+                    }
+                } else if (!hit1) {
+                    nodes[current] = node0;
+                    current++;
+                } else if (t0 < t1) {
+                    nodes[current + 0] = node1;
+                    nodes[current + 1] = node0;
+                    current += 2;
+                } else {
+                    nodes[current + 0] = node0;
+                    nodes[current + 1] = node1;
+                    current += 2;
+                }
+            } else if constexpr (std::is_same<R, RayPacket>::value) {
+                if (reverseStackOrder[node->splitAxis]) {
+                    nodes[current + 0] = node + 1;
+                    nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
+                } else {
+                    nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
+                    nodes[current + 1] = node + 1;
+                }
+
+                masks[current + 0] = mask;
+                masks[current + 1] = mask;
+
+                current += 2;
+            }
+#else
             if (reverseStackOrder[node->splitAxis]) {
                 nodes[current + 0] = node + 1;
                 nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
@@ -273,12 +496,13 @@ void Bvh::intersect(T& hitPacket, const R& packet, const TraverseStackCache* sta
                 nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
                 nodes[current + 1] = node + 1;
             }
+
             if constexpr (std::is_same<R, RayPacket>::value) {
                 masks[current + 0] = mask;
                 masks[current + 1] = mask;
             }
-
             current += 2;
+#endif
 
             PRT_ASSERT(current < kStackSize);
         } else {
@@ -288,7 +512,17 @@ void Bvh::intersect(T& hitPacket, const R& packet, const TraverseStackCache* sta
 #endif
 // TODO: give all primIndex to m.intersect? rather than loop?
             int32_t primIndexPreMap = node->primOrSecondNodeIndex;
+
+#ifdef TRI_VECTOR
+            auto& tri = m_triangleVectors[node->triVectorIndex];
+            if constexpr (std::is_same<R, SingleRayPacket>::value) {
+                intersectSingleRay<kNearest>(tri, &hitPacket, packet, m, &m_primRemapping[primIndexPreMap], primCount, kEpsilon, hitPacket.hit.t);
+            } else if constexpr (std::is_same<R, RayPacket>::value) {
+                intersectRayPacket<kNearest>(tri, mask, &hitPacket, packet, m, &m_primRemapping[primIndexPreMap], primCount, kEpsilon);
+            }
+#else
             m.intersect(hitPacket, mask, packet, &m_primRemapping[primIndexPreMap], primCount);
+#endif
         }
 
         current--;
@@ -307,16 +541,10 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
     LinearBvhNode* nodes[kStackSize];
     nodes[current] = &m_nodes[0];
 
-    bool reverseStackOrder[3];
     RayPacketMask masks[kStackSize];
 
-    if constexpr (std::is_same<R, SingleRayPacket>::value) {
-        for (uint32_t i = 0; i < VectorConstants::kDimensions; i++)
-            reverseStackOrder[i] = packet.ray.dir.v[i] < 0.0f;
-    } else if constexpr (std::is_same<R, RayPacket>::value) {
+    if constexpr (std::is_same<R, RayPacket>::value) {
         masks[current] = _mask;
-        for (uint32_t i = 0; i < VectorConstants::kDimensions; i++)
-            reverseStackOrder[i] = packet.avgDir.v[i] < 0.0f;
     }
 
     RayPacketMask occludeMask = _mask.computeNot();
@@ -346,13 +574,9 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
             // Do nothing
         } else if (primCount == LinearBvhNode::kInternalNode) {
             // Visit closer child first
-            if (reverseStackOrder[node->splitAxis]) {
-                nodes[current + 0] = node + 1;
-                nodes[current + 1] = &m_nodes[node->primOrSecondNodeIndex];
-            } else {
-                nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
-                nodes[current + 1] = node + 1;
-            }
+            nodes[current + 0] = &m_nodes[node->primOrSecondNodeIndex];
+            nodes[current + 1] = node + 1;
+
             if constexpr (std::is_same<R, RayPacket>::value) {
                 masks[current + 0] = mask;
                 masks[current + 1] = mask;
@@ -367,6 +591,20 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
             int32_t primIndexPreMap = node->primOrSecondNodeIndex;
             static_assert(SoaConstants::kLaneCount >= BvhBuildNode::kMaxPrimCountInNode, "Lanes must be more than max primitives in leaf node");
 
+#ifdef TRI_VECTOR
+            auto& tri = m_triangleVectors[node->triVectorIndex];
+            if constexpr (std::is_same<R, SingleRayPacket>::value) {
+                if (intersectSingleRay<kOcclude>(tri, nullptr, packet, m, &m_primRemapping[primIndexPreMap], primCount, kEpsilon, packet.ray.maxT))
+                    return true;
+            } else if constexpr (std::is_same<R, RayPacket>::value) {
+                auto res = intersectRayPacket<kOcclude>(tri, mask, nullptr, packet, m, &m_primRemapping[primIndexPreMap], primCount, kEpsilon);
+
+                occludeMask = occludeMask | res;
+                if (occludeMask.allTrue())
+                    return occludeMask;
+            }
+#else
+
             if constexpr (std::is_same<R, SingleRayPacket>::value) {
                 if (m.occluded<bool, SingleRayPacket>(mask, packet, &m_primRemapping[primIndexPreMap], primCount))
                     return true;
@@ -377,6 +615,7 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
                 if (occludeMask.allTrue())
                     return occludeMask;
             }
+#endif
 
         }
 

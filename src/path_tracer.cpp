@@ -226,12 +226,6 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const RayHitPacket& hit
                 RayPacket shadowRay;
 
                 uint32_t maskBits = 0;
-                uint32_t dirCount = 0;
-                Vector3f avgDir(0.0f);
-
-                for (uint32_t path = 0; path < alivePaths; path++) {
-                    avgDir = avgDir + lightDir[path]; // TODO use vector reduction
-                }
 
                 auto vectorCount = (alivePaths + SoaConstants::kLaneCount - 1)/SoaConstants::kLaneCount;
                 for (uint32_t v = 0; v < vectorCount; v++) {
@@ -245,8 +239,7 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const RayHitPacket& hit
                 }
 
                 maskBits = (1 << alivePaths) - 1;
-
-                shadowRay.avgDir = avgDir/alivePaths;
+                shadowRay.avgDir = 0.0f; // avgDir isn't used for occlude
 
 #ifdef PRT_ENABLE_STATS
                 m_stats.raysTraced += alivePaths;

@@ -83,6 +83,8 @@ public:
     uint32_t* getPrimMateialBuffer() { return m_primMaterial; }
     Material* getMaterialBuffer() { return m_materials; }
 
+    int32_t getId() const { return m_id; }
+
 private:
     static constexpr float kEpsilon = 0.0001f;
 

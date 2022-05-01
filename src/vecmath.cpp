@@ -53,6 +53,27 @@ BBox BBox::init()
 
 float BBox::intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir) const
 {
+#if 1
+    auto vlower = floatvec4(lower.x, lower.y, lower.z, -1.0f);
+    auto vupper = floatvec4(upper.x, upper.y, upper.z, 1.0f);
+    auto vorg = floatvec4(org.x, org.y, org.z, 0.0f);
+    auto vinvDir = floatvec4(invDir.x, invDir.y, invDir.z, 1.0f/0.0f);
+
+    auto tmp_t0 = mul(sub(vlower, vorg), vinvDir);
+    auto tmp_t1 = mul(sub(vupper, vorg), vinvDir);
+
+    auto t0 = min(tmp_t0, tmp_t1);
+    auto t1 = max(tmp_t0, tmp_t1);
+
+    auto max_t0 = reduceMax4(t0);
+    auto min_t1 = reduceMin4(t1);
+
+    if (min_t1 < max_t0) {
+        return kNoHit;
+    }
+
+    return max_t0;
+#else
     auto tmp_t0 = (lower - org)*invDir;
     auto tmp_t1 = (upper - org)*invDir;
 
@@ -72,6 +93,7 @@ float BBox::intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& 
     }
 
     return max_t0;
+#endif
 }
 
 bool BBox::intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir, float maxT) const

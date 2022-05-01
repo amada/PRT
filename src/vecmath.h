@@ -636,6 +636,19 @@ public:
 #endif
     }
 
+    SoaVector2f(const Vector2f* v) {
+#if defined(R_NEON)
+        m_x = {v[0].x, v[1].x, v[2].x, v[3].x};
+        m_y = {v[0].y, v[1].y, v[2].y, v[3].y};
+#elif defined(R_AVX4L)
+        m_x = _mm_set_ps(v[3].x, v[2].x, v[1].x, v[0].x);
+        m_y = _mm_set_ps(v[3].y, v[2].y, v[1].y, v[0].y);
+#elif defined(R_AVX8L)
+        m_x = _mm256_set_ps(v[7].x, v[6].x, v[5].x, v[4].x, v[3].x, v[2].x, v[1].x, v[0].x);
+        m_y = _mm256_set_ps(v[7].y, v[6].y, v[5].y, v[4].y, v[3].y, v[2].y, v[1].y, v[0].y);
+#endif
+    }
+
     SoaVector2f(const SoaFloat& x, const SoaFloat& y, const SoaFloat& z) {
         m_x = x.m_f;
         m_y = y.m_f;
@@ -660,6 +673,10 @@ public:
         r.y = AVX_INT(cvtss_f32)(AVX_INT(permutevar_ps)(m_y, index));
 #endif
         return r;
+    }
+
+    SoaVector2f broadcast(int32_t lane) const {
+        return SoaVector2f(getLane(lane));
     }
 
     SoaVector2f operator*(const SoaFloat& f) const {
@@ -798,6 +815,10 @@ public:
         u.v = m_z; u.f[lane] = v.z; r.m_z = u.v;
 
         return r;
+    }
+
+    SoaVector3f broadcast(int32_t lane) const {
+        return SoaVector3f(getLane(lane));
     }
 
     SoaVector3f swapXZ(const SoaMask& swap) const {
@@ -1009,7 +1030,7 @@ private:
 
 struct BBox
 {
-    static constexpr float kNoHit = -1.0f;
+    static constexpr float kNoHit = std::numeric_limits<float>::infinity();
 
     float intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir) const;
     bool intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir, float maxT) const;

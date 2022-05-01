@@ -40,15 +40,21 @@ private:
     int16_t m_splitAxis = 0;
 };
 
+#define TRI_VECTOR
+
 struct LinearBvhNode
 {
     const static int16_t kInternalNode = -1;
 
     BBox bbox;
+
     int32_t primOrSecondNodeIndex;
-    int16_t primCount;
-    int16_t splitAxis; // Axis splitting BVH node
+    int32_t triVectorIndex : 26;
+    int16_t primCount : 4; // triCount?
+    int16_t splitAxis : 2; // Axis splitting BVH node
 };
+
+//static_assert(sizeof(LinearBvhNode) == 64, "Size of LinearBvhNode must be multiples of cache line size");
 
 struct TraverseStackCache
 {
@@ -57,6 +63,21 @@ struct TraverseStackCache
     int32_t size;
 };
 
+struct TriangleVector
+{
+    static const uint32_t kSize = 4; // Support for 8
+
+    SoaVector3f p0; // 48B
+    SoaVector3f p1;
+    SoaVector3f p2;
+
+    int32_t alphaTest[kSize];
+    SoaVector2f uv0; // 32B
+    SoaVector2f uv1;
+    SoaVector2f uv2;
+};
+
+static_assert(sizeof(TriangleVector) == 256 || sizeof(TriangleVector) == 512, "Size of TriangleVector must be multiples of cache line size");
 
 class Bvh
 {
@@ -77,7 +98,9 @@ public:
 
     void build(Mesh&& mesh);
 private:
-    void buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode* node);
+    static constexpr float kEpsilon = 0.0001f;
+
+    void buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode* node, int32_t* triVectorIndex);
 
     Mesh m_mesh; // TODO: should have multiple meshes
     
@@ -85,6 +108,7 @@ private:
      // TODO: can remove if this just maps to primitive/index, but should include mesh index
     uint32_t* m_primRemapping;
     LinearBvhNode* m_nodes;
+    TriangleVector* m_triangleVectors;
 };
 
 

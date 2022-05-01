@@ -7,9 +7,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../ext/stb/stb_image.h"
 
-#include <zlib.h>
 #define TINYEXR_IMPLEMENTATION
-#define TINYEXR_USE_MINIZ 0
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-but-set-variable"
 #pragma clang diagnostic ignored "-Wunused-function"

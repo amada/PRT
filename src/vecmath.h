@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <cmath>
+#include <limits>
 
 #ifdef __ARM_NEON__
 #define R_NEON
@@ -122,6 +123,18 @@ inline T _neon_getLane(V v, int32_t lane) {
 }
 #endif
 
+#if defined(R_AVX4L) || defined(R_AVX8L)
+template<typename V, typename T>
+inline T _avx_getLane(V v, int32_t lane) {
+    union {
+        T i[SoaConstants::kLaneCount];
+        V v;
+    } u;
+    u.v = v;
+    return u.i[lane];
+}
+#endif
+
 static const float kPi = 3.14159265358979323846;
 
 
@@ -129,6 +142,9 @@ class Vector2f
 {
 public:
     Vector2f() = default;
+
+    Vector2f(float f) : x(f), y(f) {}
+
     Vector2f(float _x, float _y) : x(_x), y(_y) {}
 
     Vector2f operator+(const Vector2f& v) const {
@@ -309,17 +325,8 @@ public:
     int32_t getLane(int32_t lane) const {
 #if defined(R_NEON)
         return _neon_getLane<intvec_t, int32_t>(m_mask, lane);
-#else
-        union {
-            float f;
-            int32_t i;
-        } temp;
-#if defined(R_AVX4L)
-        temp.f = _mm_cvtss_f32(_mm_permutevar_ps(m_mask, _mm_set1_epi32(lane)));
-#elif defined(R_AVX8L)
-        temp.f = _mm256_cvtss_f32(_mm256_permutevar_ps(m_mask, _mm256_set1_epi32(lane)));
-#endif
-        return temp.i;
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+        return _avx_getLane<maskvec_t, int32_t>(m_mask, lane);
 #endif
     }
 
@@ -431,17 +438,8 @@ public:
     int32_t getLane(int32_t lane) const {
 #if defined(R_NEON)
         return _neon_getLane<intvec_t, int32_t>(m_i, lane);
-#else
-        union {
-            float f;
-            int32_t i;
-        } temp;
-#if defined(R_AVX4L)
-        temp.f = _mm_cvtss_f32(_mm_permutevar_ps(_mm_castps_si128(m_i), _mm_set1_epi32(lane)));
-#elif defined(R_AVX8L)
-        temp.f = _mm256_cvtss_f32(_mm256_permutevar_ps(_mm256_castps_si256(m_i), _mm256_set1_epi32(lane)));
-#endif
-        return temp.i;
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+        return _avx_getLane<intvec_t, int32_t>(m_i, lane);
 #endif
     }    
 
@@ -491,10 +489,8 @@ public:
     float getLane(int32_t lane) const {
 #if defined(R_NEON)
         return _neon_getLane<floatvec_t, float>(m_f, lane);
-#elif defined(R_AVX4L)
-        return _mm_cvtss_f32(_mm_permutevar_ps(m_f, _mm_set1_epi32(lane)));
-#elif defined(R_AVX8L)
-        return _mm256_cvtss_f32(_mm256_permutevar_ps(m_f, _mm256_set1_epi32(lane)));
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+        return _avx_getLane<floatvec_t, float>(m_f, lane);
 #endif
     }
 
@@ -668,9 +664,8 @@ public:
         r.x = _neon_getLane<floatvec_t, float>(m_x, lane);
         r.y = _neon_getLane<floatvec_t, float>(m_y, lane);
 #elif defined(R_AVX4L) || defined(R_AVX8L)
-        auto index = AVX_INT(set1_epi32)(lane);
-        r.x = AVX_INT(cvtss_f32)(AVX_INT(permutevar_ps)(m_x, index));
-        r.y = AVX_INT(cvtss_f32)(AVX_INT(permutevar_ps)(m_y, index));
+        r.x = _avx_getLane<floatvec_t, float>(m_x, lane);
+        r.y = _avx_getLane<floatvec_t, float>(m_y, lane);
 #endif
         return r;
     }
@@ -794,11 +789,10 @@ public:
         r.x = _neon_getLane<floatvec_t, float>(m_x, lane);
         r.y = _neon_getLane<floatvec_t, float>(m_y, lane);
         r.z = _neon_getLane<floatvec_t, float>(m_z, lane);
-#else        
-        auto index = AVX_INT(set1_epi32)(lane);
-        r.x = AVX_INT(cvtss_f32)(AVX_INT(permutevar_ps)(m_x, index));
-        r.y = AVX_INT(cvtss_f32)(AVX_INT(permutevar_ps)(m_y, index));
-        r.z = AVX_INT(cvtss_f32)(AVX_INT(permutevar_ps)(m_z, index));
+#else      
+        r.x = _avx_getLane<floatvec_t, float>(m_x, lane);
+        r.y = _avx_getLane<floatvec_t, float>(m_y, lane);
+        r.z = _avx_getLane<floatvec_t, float>(m_z, lane);
 #endif
         return r;
     }

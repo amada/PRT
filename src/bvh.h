@@ -44,17 +44,18 @@ private:
 
 struct LinearBvhNode
 {
-    const static int16_t kInternalNode = -1;
+    const static uint32_t kInternalNode = 0xf;
+    static_assert(kInternalNode > BvhBuildNode::kMaxPrimCountInNode, "kInternalNode is reserved to indicate whether node is internal or leaf");
 
     BBox bbox;
 
-    int32_t primOrSecondNodeIndex;
-    int32_t triVectorIndex : 26;
-    int16_t primCount : 4; // triCount?
-    int16_t splitAxis : 2; // Axis splitting BVH node
+    uint32_t primOrSecondNodeIndex;
+    uint32_t triVectorIndex : 26;
+    uint32_t primCount : 4; // triCount?
+    uint32_t splitAxis : 2; // Axis splitting BVH node
 };
 
-//static_assert(sizeof(LinearBvhNode) == 64, "Size of LinearBvhNode must be multiples of cache line size");
+static_assert(sizeof(LinearBvhNode) == 32, "Size of LinearBvhNode should be multiples, or division of power of two, of cache line size");
 
 struct TraverseStackCache
 {
@@ -65,7 +66,7 @@ struct TraverseStackCache
 
 struct TriangleVector
 {
-    static const uint32_t kSize = 4; // Support for 8
+    static const uint32_t kSize = SoaConstants::kLaneCount;
 
     SoaVector3f p0; // 48B
     SoaVector3f p1;

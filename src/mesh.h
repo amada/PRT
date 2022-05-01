@@ -82,6 +82,7 @@ public:
     Vector3f* getNormalBuffer() { return m_normals; }
     uint32_t* getPrimMateialBuffer() { return m_primMaterial; }
     Material* getMaterialBuffer() { return m_materials; }
+    Vector2f* getTexcoordBuffer() { return m_texcoords; }
 
     int32_t getId() const { return m_id; }
 

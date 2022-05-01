@@ -140,13 +140,12 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const RayHitPacket& hit
             sr.primId = hit.primId.getLane(lane);
             sr.meshId = hit.meshId.getLane(lane);
 
-            auto path = v*SoaConstants::kLaneCount + lane;
             if (sr.isHit()) {
-                scene.getSurfaceProperties(props[path], sr);
-                materials[path] = props[path].material;
-                normals[path] = materials[path]->sampleBump(props[path]);
-                pos[path] = vpos.getLane(lane);
-                rayDir[path] = ray.dir.getLane(lane);
+                scene.getSurfaceProperties(props[alivePaths], sr);
+                materials[alivePaths] = props[alivePaths].material;
+                normals[alivePaths] = materials[alivePaths]->sampleBump(props[alivePaths]);
+                pos[alivePaths] = vpos.getLane(lane);
+                rayDir[alivePaths] = ray.dir.getLane(lane);
                 alivePaths++;
             }
         }

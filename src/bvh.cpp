@@ -241,9 +241,17 @@ void Bvh::buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode
             for (uint32_t j = 0; j < Mesh::kVertexCountPerPrim; j++) {
                 uint32_t v = m.getIndex(indexBase + j);
                 p[j][i] = m.getPosition(v);
-                v = m.getTexcoordIndex(indexBase + j);
+                //v = m.getTexcoordIndex(indexBase + j);
                 uv[j][i] = m.getTexcoord(v);
             }
+        }
+
+        for (uint32_t i = primCount; i < TriangleVector::kSize; i++) {
+            for (uint32_t j = 0; j < Mesh::kVertexCountPerPrim; j++) {
+                p[j][i] = Vector3f(0.0f);
+                uv[j][i] = Vector2f(0.0f);
+            }
+            alphaTest[i] = 0;
         }
 
         auto& triVector = m_triangleVectors[*triVectorIndex];

@@ -43,6 +43,8 @@ struct Material
     ReflectionType reflectionType;
     bool alphaTest;
 
+    void init();
+
     // TODO: support for alpha channel?
     Vector3f sampleDiffuse(const Vector2f& uv) const;
     Vector3f sampleBump(const SurfaceProperties& prop) const;

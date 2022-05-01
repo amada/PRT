@@ -137,20 +137,27 @@ Mesh SampleModels::getCornellBox(bool box)
             16, 17, 18, 16, 18, 19, // left
     };
         
+    auto createDiffuse = [](const Vector3f& color) {
+        Material m;
+        m.init();
+        m.diffuse = color;
+        return m;
+    };
+
     // floor
-    materials.push_back({.diffuse = Vector3f(0.725, 0.71, 0.68)});
+    materials.push_back(createDiffuse(Vector3f(0.725, 0.71, 0.68)));
 
     // ceiling
-    materials.push_back({.diffuse = Vector3f(0.725, 0.71, 0.68)});
+    materials.push_back(createDiffuse(Vector3f(0.725, 0.71, 0.68)));
 
     // back
-    materials.push_back({.diffuse = Vector3f(0.725, 0.71, 0.68)});
+    materials.push_back(createDiffuse(Vector3f(0.725, 0.71, 0.68)));
 
     // right
-    materials.push_back({.diffuse = Vector3f(0.14, 0.45, 0.091)});
+    materials.push_back(createDiffuse(Vector3f(0.14, 0.45, 0.091)));
 
     // left
-    materials.push_back({.diffuse = Vector3f(0.63, 0.065, 0.05)});
+    materials.push_back(createDiffuse(Vector3f(0.63, 0.065, 0.05)));
 
     if (box) {
         // Short box and tall box
@@ -159,19 +166,24 @@ Mesh SampleModels::getCornellBox(bool box)
 
 #if 1 // glass box
             if (i >= 6) {
-                materials.push_back({.diffuse = Vector3f(0.725, 0.71, 0.68), .reflectionType = ReflectionType::kDiffuse});
+                auto m = createDiffuse(Vector3f(0.725, 0.71, 0.68));
+                m.reflectionType = ReflectionType::kDiffuse;
+                materials.push_back(m);
             } else {
-                materials.push_back({.diffuse = Vector3f(0.725, 0.71, 0.68)});
+                materials.push_back(createDiffuse(Vector3f(0.725, 0.71, 0.68)));
             }
 #else
-            materials.push_back({.diffuse = Vector3f{0.725, 0.71, 0.68}});
+            materials.push_back(createDiffuse(Vector3f{0.725, 0.71, 0.68));
 #endif
             indices.insert(indices.end(), {20 + b, 21 + b, 22 + b, 20 + b, 22 + b, 23 + b});
         }
     }
 
     // light
-    materials.push_back({.emissive = Vector3f(17, 12, 4)});
+    Material em;
+    em.init();
+    em.emissive = Vector3f(17, 12, 4);
+    materials.push_back(em);
     indices.insert(indices.end(), {68, 69, 70, 68, 70, 71});
 
     primMaterial.resize(materials.size()*2);
@@ -189,6 +201,7 @@ Mesh SampleModels::getCornellBox(bool box)
     memcpy(mesh.getPositionBuffer(), &verts[0], sizeof(verts));
     memcpy(mesh.getPrimMateialBuffer(), &primMaterial[0], primMaterial.size()*sizeof(uint32_t));
     memcpy(mesh.getMaterialBuffer(), &materials[0], materials.size()*sizeof(Material));
+    memset(mesh.getTexcoordBuffer(), 0, mesh.getVertexCount()*sizeof(Vector2f));
 
     return mesh;
 }

@@ -27,6 +27,21 @@ inline Vector3f degamma(const Vector3f& c)
     return Vector3f(pow(c.x, 2.2f), pow(c.y, 2.2f), pow(c.z, 2.2f));
 }
 
+void Material::init()
+{
+    diffuse = Vector3f(0.0f);
+    ambient = Vector3f(0.0f);
+    specular = Vector3f(0.0f);
+    emissive = Vector3f(0.0f);
+    diffuseMap.init();
+    ambientMap.init();
+    specularMap.init();
+    emissiveMap.init();
+    bumpMap.init();
+    reflectionType = ReflectionType::kDiffuse;
+    alphaTest = false;
+}
+
 void Material::load(const tinyobj::material_t& m, const std::string& dirPath)
 {
     diffuse = Vector3f(m.diffuse, std::size(m.diffuse));

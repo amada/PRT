@@ -144,9 +144,8 @@ void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const M
     }
 
     int32_t mid = cursor - 1;
-    if (mid <= start || end >= mid) {
+    if (mid <= start || end <= mid) {
         mid = (start + end)/2;
-    } else {
     }
 
     m_splitAxis = dim;

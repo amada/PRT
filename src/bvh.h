@@ -17,7 +17,7 @@ class BvhBuildNode
 {
     friend class Bvh;
 public:
-    const static int32_t kMaxPrimCountInNode = 4;
+    const static int32_t kMaxPrimCountInNode = SoaConstants::kLaneCount;
 
     struct BuildContext
     {
@@ -67,15 +67,18 @@ struct TraverseStackCache
 struct TriangleVector
 {
     static const uint32_t kSize = SoaConstants::kLaneCount;
+    static_assert(TriangleVector::kSize >= BvhBuildNode::kMaxPrimCountInNode, "TriangleVector needs to be able to contain as many triangle as BvhBuildNode::kMaxPrimCountInNode");
 
-    SoaVector3f p0; // 48B
-    SoaVector3f p1;
-    SoaVector3f p2;
+    static const uint32_t kVectorCount = kSize/SoaConstants::kLaneCount;
+
+    SoaVector3f p0[kVectorCount];
+    SoaVector3f p1[kVectorCount];
+    SoaVector3f p2[kVectorCount];
 
     int32_t alphaTest[kSize];
-    SoaVector2f uv0; // 32B
-    SoaVector2f uv1;
-    SoaVector2f uv2;
+    SoaVector2f uv0[kVectorCount];
+    SoaVector2f uv1[kVectorCount];
+    SoaVector2f uv2[kVectorCount];
 };
 
 static_assert(sizeof(TriangleVector) == 256 || sizeof(TriangleVector) == 512, "Size of TriangleVector must be multiples of cache line size");

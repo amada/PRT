@@ -10,13 +10,16 @@ Features
     - [x] Arm Neon
     - [x] SSE/AVX (No support for AVX-512)
   - Computations
-    - [x] N rays - M triangles intersection
+    - [x] N rays - triangle intersection
+    - [x] Ray - N triangles intersection
     - [x] N rays - BBox intersection
     - [x] Ray - BBox intersection
+    - [] Bilinear filtering
 * Acceleration structures
   - [x] BVH for triangle mesh
 * Ray packet tracing
   - [x] Primary rays
+  - [x] Occlude rays
   - [ ] Secondary rays/binning
   - [ ] Compaction
 * Path tracing
@@ -28,7 +31,7 @@ Features
   - [ ] Volumetric
 * Direct lights
   - [x] Directional light
-  - [ ] Infinite light
+  - [x] Infinite area light
   - [ ] Point light
   - [ ] Spot light
 * Texture mapping
@@ -37,6 +40,7 @@ Features
   - [x] Bump
   - [x] Bilinear filtering
   - [ ] Mipmapping
+  - [] Tiling
 * Camera
 
 
@@ -57,10 +61,15 @@ Rendered images
 ---------------
 
 Cornell Box + Teapot
------------------------------
+--------------------
 ![Cornell Box + Teapot](images/cornell_box_teapot.png)
 
 San Miguel
------------------
+----------
 ![San Miguel](images/san_miguel.png)
 san-miguel-low-poly from https://casual-effects.com/data/
+
+Sponza
+------
+![Sponza](images/sponza.jpg)
+Crytek Sponza from https://casual-effects.com/data/

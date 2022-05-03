@@ -14,9 +14,10 @@ Features
     - [x] Ray - N triangles intersection
     - [x] N rays - BBox intersection
     - [x] Ray - BBox intersection
-    - [] Bilinear filtering
+    - [ ] Bilinear filtering
 * Acceleration structures
   - [x] BVH for triangle mesh
+    - Two children, and multiple triangles in leaf node
 * Ray packet tracing
   - [x] Primary rays
   - [x] Occlude rays
@@ -40,7 +41,7 @@ Features
   - [x] Bump
   - [x] Bilinear filtering
   - [ ] Mipmapping
-  - [] Tiling
+  - [ ] Tiled access
 * Camera
 
 

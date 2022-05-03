@@ -10,6 +10,7 @@
 #include "vecmath.h"
 #include "triangle.h"
 #include "ray.h"
+#include "thread_pool.h"
 #include "log.h"
 
 #include "bvh.h"
@@ -27,8 +28,11 @@ void BvhBuildNode::calculateBounds(const uint32_t* primRemapping, const Mesh& me
     }
 }
 
-void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const Mesh& mesh, int32_t start, int32_t end)
+void BvhBuildNode::build(BuildContext& context, int32_t start, int32_t end, int32_t level)
 {
+    auto& mesh = *context.mesh;
+    auto primRemapping = context.primRemapping;
+
     calculateBounds(primRemapping, mesh, start, end);
 
     int32_t primCount = end - start + 1;
@@ -150,8 +154,17 @@ void BvhBuildNode::build(BuildContext& context, uint32_t* primRemapping, const M
 
     m_splitAxis = dim;
 
-    nodes[0]->build(context, primRemapping, mesh, start, mid);
-    nodes[1]->build(context, primRemapping, mesh, mid + 1, end);
+    if (context.threadPool && level == 2) {
+        context.threadPool->queue([nodes, &context, start, mid, level]() {
+            nodes[0]->build(context, start, mid, level + 1);
+        });
+        context.threadPool->queue([nodes, &context, mid, end, level]() {
+            nodes[1]->build(context, mid + 1, end, level + 1);
+        });
+    } else {
+        nodes[0]->build(context, start, mid, level + 1);
+        nodes[1]->build(context, mid + 1, end, level + 1);
+    }
 
     m_children[0] = nodes[0];
     m_children[1] = nodes[1];
@@ -170,22 +183,35 @@ void Bvh::build(Mesh&& mesh)
     }
 
     BvhBuildNode::BuildContext context;
+    context.threadPool = new ThreadPool;
+    context.threadPool->create(-1);
     context.nodeCount = 1;
     memset(&context.primCountInNode[0], 0, sizeof(context.primCountInNode));
 
     auto rootBuildNode = new BvhBuildNode;
-    rootBuildNode->build(context, m_primRemapping, m_mesh, 0, primRemappingSize - 1);
+    context.mesh = &m_mesh;
+    context.primRemapping = m_primRemapping;
+
+    auto start = std::chrono::steady_clock::now();
+    rootBuildNode->build(context, 0, primRemappingSize - 1, 0);
+
+
+    if (context.threadPool) {
+        context.threadPool->waitAllTasksDone();
+        delete context.threadPool;
+        context.threadPool = nullptr;
+    }
 
     LinearBvhNode* nodes = new LinearBvhNode[context.nodeCount];
 
 #ifdef TRI_VECTOR
     uint32_t primNodeCount = 0;
 #endif
-    logPrintf(LogLevel::kVerbose, "LinearBvhNode (count=%u, size=%.3fMiB)\n", context.nodeCount, context.nodeCount*sizeof(LinearBvhNode)/1024.0f/1024.0f);
+    logPrintf(LogLevel::kVerbose, "LinearBvhNode (count=%u, size=%.3fMiB)\n", context.nodeCount.load(), context.nodeCount*sizeof(LinearBvhNode)/1024.0f/1024.0f);
     for (uint32_t i = 0; i < sizeof(context.primCountInNode)/sizeof(context.primCountInNode[0]); i++) {
-        logPrintf(LogLevel::kVerbose, "([%u] %u) ", i + 1, context.primCountInNode[i]);
+        logPrintf(LogLevel::kVerbose, "([%u] %u) ", i + 1, context.primCountInNode[i].load());
 #ifdef TRI_VECTOR
-        primNodeCount += context.primCountInNode[i]; // ??? verify this
+        primNodeCount += context.primCountInNode[i];
 #endif
     }
     logPrintf(LogLevel::kVerbose, "\n");
@@ -200,6 +226,11 @@ void Bvh::build(Mesh&& mesh)
 #ifdef TRI_VECTOR
     logPrintf(LogLevel::kVerbose, "TriangleVector %d\n", triVectorIndex);
 #endif
+    auto end = std::chrono::steady_clock::now();
+
+    auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    logPrintf(LogLevel::kVerbose, "BVH build time %dms\n", elapsedMs);
+
     m_nodes = nodes;
 }
 
@@ -611,7 +642,6 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
             auto& m = m_mesh;
 
             int32_t primIndexPreMap = node->primOrSecondNodeIndex;
-//            static_assert(SoaConstants::kLaneCount >= BvhBuildNode::kMaxPrimCountInNode, "Lanes must be more than max primitives in leaf node");
 
 #ifdef TRI_VECTOR
             auto& tri = m_triangleVectors[node->triVectorIndex];
@@ -626,6 +656,7 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
                     return occludeMask;
             }
 #else
+            static_assert(SoaConstants::kLaneCount >= BvhBuildNode::kMaxPrimCountInNode, "Lanes must be more than max primitives in leaf node");
 
             if constexpr (std::is_same<R, SingleRayPacket>::value) {
                 if (m.occluded<bool, SingleRayPacket>(mask, packet, &m_primRemapping[primIndexPreMap], primCount))

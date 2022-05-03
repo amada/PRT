@@ -10,6 +10,7 @@
 #include "triangle.h"
 #include "bvh.h"
 #include "ray.h"
+#include "thread_pool.h"
 
 #include "mesh.h"
 
@@ -218,16 +219,24 @@ void Mesh::loadObj(const char* path)
     std::vector<Material> materials;
     materials.resize(objReader.GetMaterials().size());
     uint32_t mi = 0;
+
+    ThreadPool threadPool;
+    threadPool.create(-1);
+
     for (auto srcMat: objReader.GetMaterials()) {
         auto& m = materials[mi];
+
+        threadPool.queue([&m, objPath, srcMat]() {
 #ifdef _WIN32
-        std::wstring parentPath = objPath.parent_path();
-        m.load(srcMat, std::string(parentPath.begin(), parentPath.end()));
+            std::wstring parentPath = objPath.parent_path();
+            m.load(srcMat, std::string(parentPath.begin(), parentPath.end()));
 #else
-        m.load(srcMat, objPath.parent_path());
+            m.load(srcMat, objPath.parent_path());
 #endif
+        });
         mi++;
     }
+    threadPool.waitAllTasksDone();
 
     std::vector<uint32_t> primMat;
     std::vector<uint32_t> indices;
@@ -237,7 +246,6 @@ void Mesh::loadObj(const char* path)
 
     uint32_t vertexCount = attr.vertices.size()/3;
     std::vector<Vector2f> tex; tex.resize(vertexCount);
-//    std::vector<Vector3f> norm; norm.resize(vertexCount);
 
     for (auto s: objReader.GetShapes()) {
         // TODO: not taking care of normal and texture coords
@@ -251,11 +259,6 @@ void Mesh::loadObj(const char* path)
             uint32_t b;
             b = 2*i.texcoord_index;
             tex[i.vertex_index] = Vector2f(attr.texcoords[b], 1.0f - attr.texcoords[b + 1]);
-/*
-            b = 3*i.normal_index;
-            norm[i.vertex_index] 
-                = Vector3f(attr.normals[b], attr.normals[b + 1], attr.normals[b + 2]);
-                */
         }
 
         primMat.insert(primMat.end(), s.mesh.material_ids.begin(), s.mesh.material_ids.end());

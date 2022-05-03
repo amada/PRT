@@ -11,6 +11,7 @@ namespace prt
 {
 
 
+class ThreadPool;
 class Bvh;
 
 class BvhBuildNode
@@ -21,13 +22,18 @@ public:
 
     struct BuildContext
     {
-        uint32_t nodeCount;
-        uint32_t primCountInNode[kMaxPrimCountInNode]; // Only used for stats
+        ThreadPool* threadPool;
+        const Mesh* mesh;
+        uint32_t* primRemapping;
+
+        // TODO: better not to use atomic here for perf, instead accumulate the values after works have been done
+        std::atomic<uint32_t> nodeCount;
+        std::atomic<uint32_t> primCountInNode[kMaxPrimCountInNode]; // Only used for stats
     };
 
 private:
     void calculateBounds(const uint32_t* primRemapping, const Mesh& mesh, int32_t start, int32_t end);
-    void build(BuildContext& context, uint32_t* primRemapping, const Mesh& mesh, int32_t start, int32_t end);
+    void build(BuildContext& context, int32_t start, int32_t end, int32_t level);
 
     BBox m_bbox = BBox::init();
 

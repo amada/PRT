@@ -3,21 +3,22 @@
 namespace prt
 {
 
-void ThreadPool::create(uint32_t threadCount)
+void ThreadPool::create(int32_t threadCount)
 {
-    if (threadCount == 0) {
-        uint32_t cpuThreads = std::thread::hardware_concurrency();
+    if (threadCount <= 0) {
+        uint32_t cpuThreads = std::thread::hardware_concurrency() + threadCount;
         if (cpuThreads == 0) {
             cpuThreads = 8;
             printf("Number of CPU threads is unknown; use %u threads\n", cpuThreads);
         } else {
-            printf("%u CPU threads are available\n", cpuThreads);
+            printf("%u CPU threads are available for ThreadPool\n", cpuThreads);
         }
         threadCount = cpuThreads;
     }
 
     m_alive = true;
     m_threadCount = threadCount;
+    if (m_workers) delete[] m_workers;
     m_workers = new std::thread[threadCount];
     for (uint32_t i = 0; i < threadCount; i++) {
         m_workers[i] = std::thread([this]() { this->workerThreadRun(); });
@@ -44,6 +45,8 @@ void ThreadPool::queue(Task task)
 
 void ThreadPool::waitAllTasksDone()
 {
+    if (!m_alive)
+        return;
     {
         std::unique_lock<std::mutex> guard(m_mutex);
         m_alive = false;

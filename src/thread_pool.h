@@ -14,7 +14,7 @@ public:
 //    ThreadPool();
     virtual ~ThreadPool();
 
-    void create(uint32_t threadCount);
+    void create(int32_t threadCount);
     void queue(Task task);
     void waitAllTasksDone();
     size_t getTaskCount() const { return m_tasks.size(); } // not thread safe

@@ -43,7 +43,7 @@ void test_vecmath()
     printf("test_vecmath()\n");
 
     {
-        SoaFloat f(0.0f);
+        SoaFloat f(5.0f);
         f = f.replaceLane(0, 1.0f);
         f = f.replaceLane(1, 2.0f);
         f = f.replaceLane(2, 3.0f);

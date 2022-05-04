@@ -15,6 +15,28 @@ using namespace prt;
 
 #define ASSERT_I_EQUAL(x, y) { if ((x) != (y)) { printf("Equal assertion failed (%d != %d) at line %d in %s\n", (x), (y), __LINE__, __FILE__); __builtin_trap(); }}
 
+// Apple M1 performance core clock
+const static uint32_t kCpuClk = 3200u*1000u*1000u;
+
+
+class ScopePerf
+{
+    using timer = std::chrono::steady_clock;
+public:
+    ScopePerf(int64_t* timing) : m_timing(timing) {
+        m_start = timer::now();
+    }
+
+    ~ScopePerf() {
+        auto end = timer::now();
+        *m_timing = std::chrono::duration_cast<std::chrono::microseconds>(end - m_start).count();
+    }
+
+private:
+    int64_t* m_timing;
+    std::chrono::time_point<timer> m_start;
+};
+
 
 void test_vecmath()
 {
@@ -102,7 +124,177 @@ void test_triangle_intersection()
 
         ASSERT_F_EQUAL(intr.t.getLane(0), 1.0f);
     }
+}
 
+
+void print_perf_result(const char* name, float result, uint32_t num, int64_t us, int32_t lanes)
+{
+    float intrSec = num*1000.0f*1000.0f/us;
+    float clkIntr = kCpuClk/intrSec;
+
+    srand(result); // in order to avoid result from being optimized out
+    printf("[%s] ", name);
+    printf("%lldus %.1fM intersections/sec ", us, intrSec/1000/1000);
+    printf("%.1f clk/intersection, %.2f intersections/clk\n", clkIntr, lanes/clkIntr);
+}
+
+void test_perf_n_tri()
+{
+    const uint32_t kNum = 16*1024*1024;
+    SoaFloat sum(0.0f);
+
+    int64_t us = 0;
+
+    struct Triangle {
+        SoaVector3f v0;
+        SoaVector3f v1;
+        SoaVector3f v2;
+    };
+
+    auto tris = new Triangle[kNum];
+    for (uint32_t i = 0; i < kNum; i++) {
+        auto& tri = tris[i];
+        tri.v0 = SoaVector3f(i, 0.0f, 0.0f);
+        tri.v1 = SoaVector3f(1.0f, 0.0f, 1.0f/(i + 1));
+        tri.v2 = SoaVector3f(0.0f, i & 0xff, 0.0f);
+    }
+
+    {
+        ScopePerf perf(&us);
+
+        SoaMask mask; mask.setAll(true);
+        SoaMask swapXZ; swapXZ.setAll(false);
+        SoaMask swapYZ; swapYZ.setAll(false);
+
+        for (uint32_t i = 0; i < kNum; i++) {
+            auto& tri = tris[i];
+            auto& v0 = tri.v0;
+            auto& v1 = tri.v1;
+            auto& v2 = tri.v2;
+
+            SoaVector3f o(0.4f, 0.0f, -1.0f);
+            SoaVector3f d(0.0f, 0.0f, 1.0f);
+
+            auto intr = intersectTriangle(mask, o, d, swapXZ, swapYZ, v0, v1, v2);
+
+            sum = sum + intr.t;
+        }
+    }
+    delete[] tris;
+
+    print_perf_result("N rays-triangle", sum.getLane(0), kNum, us, SoaConstants::kLaneCount);
+}
+
+void test_perf_n_bbox()
+{
+    const uint32_t kNum = 16*1024*1024;
+    SoaFloat sum(0.0f);
+
+    int64_t us = 0;
+
+    auto bboxes = new BBox[kNum];
+    for (uint32_t i = 0; i < kNum; i++) {
+        auto& bbox = bboxes[i];
+        bbox.lower = Vector3f(-1.0f, -i*0.2f, 0.0f);
+        bbox.upper = Vector3f(1.0f, i*2.0f, i & 0xff + 1);
+    }
+
+
+    SoaVector3f o(0.4f, 0.0f, -1.0f);
+    SoaVector3f d(0.0f, 0.0f, 1.0f);
+    auto inv_d = 1.0f/d;
+
+    {
+        ScopePerf perf(&us);
+
+        for (uint32_t i = 0; i < kNum; i++) {
+            auto& bbox = bboxes[i];
+
+            auto t = bbox.intersect(o, d, inv_d);
+
+            sum = sum + t;
+        }
+    }
+    delete[] bboxes;
+
+    print_perf_result("N rays-bbox", sum.getLane(0), kNum, us, SoaConstants::kLaneCount);
+}
+
+void test_perf_tri()
+{
+    const uint32_t kNum = 16*1024*1024;
+    float sum = 0.0f;
+
+    int64_t us = 0;
+
+    struct Triangle {
+        Vector3f v0;
+        Vector3f v1;
+        Vector3f v2;
+    };
+
+    auto tris = new Triangle[kNum];
+    for (uint32_t i = 0; i < kNum; i++) {
+        auto& tri = tris[i];
+        tri.v0 = Vector3f(i, 0.0f, 0.0f);
+        tri.v1 = Vector3f(1.0f, 0.0f, 1.0f/(i + 1));
+        tri.v2 = Vector3f(0.0f, i & 0xff, 0.0f);
+    }
+
+    {
+        ScopePerf perf(&us);
+
+        for (uint32_t i = 0; i < kNum; i++) {
+            auto& tri = tris[i];
+            auto& v0 = tri.v0;
+            auto& v1 = tri.v1;
+            auto& v2 = tri.v2;
+            Vector3f o(0.4f, i & 0xff, -1.0f);
+            Vector3f d(0.0f, 0.0f, 1.0f);
+
+            auto intr = intersectTriangle(o, d, v0, v1, v2);
+
+            sum = sum + intr.t;
+        }
+    }
+    delete[] tris;
+
+    print_perf_result("Ray-triangle", sum, kNum, us, 1);
+}
+
+void test_perf_bbox()
+{
+    const uint32_t kNum = 16*1024*1024;
+    SoaFloat sum(0.0f);
+
+    int64_t us = 0;
+
+    auto bboxes = new BBox[kNum];
+    for (uint32_t i = 0; i < kNum; i++) {
+        auto& bbox = bboxes[i];
+        bbox.lower = Vector3f(-1.0f, -i*0.2f, 0.0f);
+        bbox.upper = Vector3f(1.0f, i*2.0f, i & 0xff + 1);
+    }
+
+
+    Vector3f o(0.4f, 0.0f, -1.0f);
+    Vector3f d(0.0f, 0.0f, 1.0f);
+    auto inv_d = 1.0f/d;
+
+    {
+        ScopePerf perf(&us);
+
+        for (uint32_t i = 0; i < kNum; i++) {
+            auto& bbox = bboxes[i];
+
+            auto t = bbox.intersect(o, d, inv_d);
+
+            sum = sum + t;
+        }
+    }
+    delete[] bboxes;
+
+    print_perf_result("Ray-bbox", sum.getLane(0), kNum, us, 1);
 
 }
 
@@ -129,6 +321,11 @@ int main()
     test_vecmath();
     test_triangle_intersection();
     test_thread_pool();
+
+    test_perf_n_tri();
+    test_perf_n_bbox();
+    test_perf_tri();
+    test_perf_bbox();
 
     return 0;
 }

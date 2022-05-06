@@ -53,10 +53,11 @@ using floatvec4_t = __m128;
 class SoaConstants final {
 public:
 #ifdef R_AVX8L
-    static const uint32_t kLaneCount = 8;
+    static const int32_t kLaneCount = 8;
 #else
-    static const uint32_t kLaneCount = 4;
+    static const int32_t kLaneCount = 4;
 #endif
+    static const int32_t kFullLaneMask = (1 << kLaneCount) - 1;
 };
 
 class VectorConstants final {
@@ -292,7 +293,7 @@ public:
     SoaMask(maskvec_t mask) : m_mask(mask) {
     }
 
-    SoaMask(uint32_t mask) {
+    SoaMask(int32_t mask) {
 #define SET_MASK(i) ((i) ? 0xffffffffu : 0u)
 #if defined(R_NEON)
         m_mask = vdupq_n_u32(SET_MASK(mask & 0x1));
@@ -1039,8 +1040,8 @@ struct BBox
     static BBox init();
 
 //    void init();
-    void grow(const BBox& bbox);
-    void grow(const Vector3f& p);
+    void merge(const BBox& bbox);
+    void merge(const Vector3f& p);
     float surfaceArea() const;
 
     Vector3f center() const { return 0.5f*(upper + lower); }

@@ -122,42 +122,4 @@ private:
 };
 
 
-#if 0
-struct LinearBvh
-{
-};
-
-template<typename T, typename U>
-struct SurfacePropertiesT
-{
-    T normal;
-    U material;
-    Vector2f uv;
-};
-
-using SurfaceProperties = SurfacePropertiesT<Vector3f, const Material*>;
-using SoaSurfaceProperties = SurfacePropertiesT<SoaVector3f, SoaVar<const Material*>>;
-
-
-class Scene
-{
-public:
-    template<typename T, typename U>
-    void intersect(T& intr, const U& ray) const;
-
-
-    template<typename T, typename U>
-    void getSurfaceProperties(T& properties, const U& intr) const;
-
-    void Add(Bvh* bvh) { 
-        bvh->m_id = m_bvh.size();
-        m_bvh.push_back(bvh); 
-    } // shared ptr?
-
-private:
-    // TODO remove std::vector
-    std::vector<Bvh*> m_bvh;
-};
-#endif
-
 } // namespace prt

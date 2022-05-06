@@ -175,13 +175,13 @@ bool BBox::contains(const Vector3f& p) const
            lower.z <= p.z && p.z <= upper.z;
 }
 
-void BBox::grow(const BBox& bbox)
+void BBox::merge(const BBox& bbox)
 {
     lower = min(lower, bbox.lower);
     upper = max(upper, bbox.upper);
 }
 
-void BBox::grow(const Vector3f& p)
+void BBox::merge(const Vector3f& p)
 {
     lower = min(lower, p);
     upper = max(upper, p);

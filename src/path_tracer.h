@@ -22,7 +22,7 @@ public:
     Stats getStats() const { return m_stats; }
 
 private:
-    Vector3f SoaTrace(const Camera& camera, const Scene& scene, uint32_t x, uint32_t y, uint32_t samples, const TraverseStackCache* stackCache);
+    Vector3f TracePacket(const Camera& camera, const Scene& scene, uint32_t x, uint32_t y, uint32_t samples, const TraverseStackCache* stackCache);
 
     Vector3f ComputeRadiance(
         const Scene& scene,

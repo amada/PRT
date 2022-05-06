@@ -58,10 +58,10 @@ inline void computeBilinearIndicesAndWeights(SoaFloat* k, SoaInt* indices, int32
 
     SoaInt x[2];
     x[0] = floor(s*(width - 1));
-    x[1] = min(x[0] + 1, (int32_t)width - 1);
+    x[1] = min(x[0] + 1, width - 1);
     SoaInt y[2];
     y[0] = floor(t*(height - 1));
-    y[1] = min(y[0] + 1, (int32_t)height - 1);
+    y[1] = min(y[0] + 1, height - 1);
 
     indices[0] = component*(x[0] + y[0]*width);
     indices[1] = component*(x[1] + y[0]*width);

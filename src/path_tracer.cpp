@@ -23,7 +23,7 @@ void PathTracer::TraceBlock(Image& image, uint32_t x0, uint32_t y0, uint32_t x1,
     for (uint32_t y = y0; y <= y1; y++) {
         for (uint32_t x = x0; x <= x1; x++) {
 //            Vector3f color = SoaTrace(camera, scene, x, y, samples, &stackCache);
-            Vector3f color = SoaTrace(camera, scene, x, y, samples, nullptr);
+            Vector3f color = TracePacket(camera, scene, x, y, samples, nullptr);
 
             color = color/samples;
 
@@ -55,7 +55,7 @@ Vector3f PathTracer::Trace(const Camera& camera, const Scene& scene, uint32_t x,
 }
 
 // Name should be packet tracing
-Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t x, uint32_t y, uint32_t samples, const TraverseStackCache* stackCache)
+Vector3f PathTracer::TracePacket(const Camera& camera, const Scene& scene, uint32_t x, uint32_t y, uint32_t samples, const TraverseStackCache* stackCache)
 {
     Vector3f color(0);
 
@@ -69,38 +69,7 @@ Vector3f PathTracer::SoaTrace(const Camera& camera, const Scene& scene, uint32_t
         RayHitPacket hitPacket;
         scene.intersect(hitPacket, packet, stackCache);
 
-#if 1
         color = color + ComputeRadiance(scene, hitPacket, packet);
-
-#else
-#ifdef PRT_ENABLE_STATS
-        m_stats.merge(hitPacket.stats);
-#endif
-
-        for (uint32_t v = 0; v < RayPacket::kVectorCount; v++) {
-            const auto& hit = hitPacket.hits[v];
-            const auto& ray = packet.rays[v];
-            auto pos = hit.t*ray.dir + ray.org;
-
-            for (uint32_t lane = 0; lane < SoaConstants::kLaneCount; lane++) {
-                RayHit sr;
-                sr.t = hit.t.getLane(lane);
-                sr.i = hit.i.getLane(lane);
-                sr.j = hit.j.getLane(lane);
-                sr.k = hit.k.getLane(lane);
-                sr.primId = hit.primId.getLane(lane);
-                sr.meshId = hit.meshId.getLane(lane);
-    
-                if (sr.isHit()) {
-                    SurfaceProperties prop;
-                    scene.getSurfaceProperties(prop, sr);
-                    
-                    color = color + ComputeRadiance(scene, ray.dir.getLane(lane), pos.getLane(lane), prop);
-    //                color = color + ComputeRadiance(scene, ray.dir.getLane(lane), pos.getLane(lane), prop, 0);
-                } 
-            }
-        }
-        #endif
     }
 
     return color;
@@ -184,6 +153,13 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const RayHitPacket& hit
                 // Cosine-weighted distribution
                 nextRayDir[path] = r2sq*std::cos(theta) * binormal + r2sq*std::sin(theta)*tangent + (1 - r2)*normal;
 
+                // In calculation of indirect diffuse, PDF and Pi is cancelled in the formula below
+                // diffuse/kPi/PDF = diffuse/kPI/(cosTheta/kPi) = diffuse
+                //
+                // Cosine-weighted hemisphere sampling
+                // https://pbr-book.org/3ed-2018/Monte_Carlo_Integration/2D_Sampling_with_Multidimensional_Transformations#Cosine-WeightedHemisphereSampling
+                // Labertian reflection
+                // https://pbr-book.org/3ed-2018/Reflection_Models/Lambertian_Reflection
                 beta[path] = beta[path]*material->sampleDiffuse(prop.uv);
 
                 if (scene.isLightAvailable(LightType::kInfiniteArea)) {
@@ -224,7 +200,7 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const RayHitPacket& hit
             if (grouping) {
                 RayPacket shadowRay;
 
-                uint32_t maskBits = 0;
+                int32_t maskBits = 0;
 
                 auto vectorCount = (alivePaths + SoaConstants::kLaneCount - 1)/SoaConstants::kLaneCount;
                 for (uint32_t v = 0; v < vectorCount; v++) {

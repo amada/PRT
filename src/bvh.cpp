@@ -23,7 +23,7 @@ void BvhBuildNode::calculateBounds(const uint32_t* primRemapping, const Mesh& me
     for (int32_t i = start; i <= end; i++) {
         const int32_t indexBase = Mesh::kVertexCountPerPrim*primRemapping[i];
         for (int32_t j = 0; j < Mesh::kVertexCountPerPrim; j++) {
-            m_bbox.grow(mesh.getPosition(mesh.getIndex(indexBase + j)));
+            m_bbox.merge(mesh.getPosition(mesh.getIndex(indexBase + j)));
         }
     }
 }
@@ -80,7 +80,7 @@ void BvhBuildNode::build(BuildContext& context, int32_t start, int32_t end, int3
             for (int32_t j = 0; j < Mesh::kVertexCountPerPrim; j++) {
                 auto v = mesh.getPosition(mesh.getIndex(indexBase + j));
                 temp = temp + v;
-                primBounds.grow(v);
+                primBounds.merge(v);
             }
             temp = 1.0f/Mesh::kVertexCountPerPrim*temp;
 
@@ -89,7 +89,7 @@ void BvhBuildNode::build(BuildContext& context, int32_t start, int32_t end, int3
             if (b < 0) { b = 0; }
 
             buckets[b].count++;
-            buckets[b].bounds.grow(primBounds);
+            buckets[b].bounds.merge(primBounds);
         }
 
         // Find the lowest cost split
@@ -98,14 +98,14 @@ void BvhBuildNode::build(BuildContext& context, int32_t start, int32_t end, int3
             BBox boundsLeft = BBox::init();
             for (uint32_t j = 0; j <= i; j++) {
                 countLeft += buckets[j].count;
-                boundsLeft.grow(buckets[j].bounds);
+                boundsLeft.merge(buckets[j].bounds);
             }
 
             uint32_t countRight = 0;
             BBox boundsRight = BBox::init();
             for (uint32_t j = i + 1; j < kBucketCount; j++) {
                 countRight += buckets[j].count;
-                boundsRight.grow(buckets[j].bounds);
+                boundsRight.merge(buckets[j].bounds);
             }
 
             float cost = 0.125f + (countLeft*boundsLeft.surfaceArea() + countRight*boundsRight.surfaceArea());

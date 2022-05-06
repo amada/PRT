@@ -20,7 +20,7 @@ void Scene::add(Bvh* bvh)
 { 
     bvh->m_mesh.m_id = m_bvh.size();
     m_bvh.push_back(bvh);
-    m_bbox.grow(bvh->m_mesh.getBBox());
+    m_bbox.merge(bvh->m_mesh.getBBox());
 
     auto center = m_bbox.center();
     m_radius = length(m_bbox.upper - center);

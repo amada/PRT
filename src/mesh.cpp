@@ -296,7 +296,7 @@ void Mesh::calculateBounds()
     BBox bbox = BBox::init();
 
     for (uint32_t i = 0; i < m_vertexCount; i++) {
-        bbox.grow(m_positions[i]);
+        bbox.merge(m_positions[i]);
     }
 
     m_bbox = bbox;

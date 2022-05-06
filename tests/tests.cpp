@@ -129,13 +129,14 @@ void test_triangle_intersection()
 
 void print_perf_result(const char* name, float result, uint32_t num, int64_t us, int32_t lanes)
 {
-    float intrSec = num*1000.0f*1000.0f/us;
-    float clkIntr = kCpuClk/intrSec;
+    float funcSec = num*1000.0f*1000.0f/us;
+    float clkFunc = kCpuClk/funcSec;
+    float mFuncSec = funcSec/1000/1000;
 
     srand(result); // in order to avoid result from being optimized out
     printf("[%s] ", name);
-    printf("%lldus %.1fM intersections/sec ", us, intrSec/1000/1000);
-    printf("%.1f clk/intersection, %.2f intersections/clk\n", clkIntr, lanes/clkIntr);
+    printf("%lldus %.1fM functions/sec ", us, mFuncSec);
+    printf("%.1f clk/function, %.2fM intersections/sec\n", clkFunc, lanes*mFuncSec);
 }
 
 void test_perf_n_tri()
@@ -146,25 +147,28 @@ void test_perf_n_tri()
     int64_t us = 0;
 
     struct Triangle {
-        SoaVector3f v0;
-        SoaVector3f v1;
-        SoaVector3f v2;
+        Vector3f v0;
+        Vector3f v1;
+        Vector3f v2;
     };
 
     auto tris = new Triangle[kNum];
     for (uint32_t i = 0; i < kNum; i++) {
         auto& tri = tris[i];
-        tri.v0 = SoaVector3f(i, 0.0f, 0.0f);
-        tri.v1 = SoaVector3f(1.0f, 0.0f, 1.0f/(i + 1));
-        tri.v2 = SoaVector3f(0.0f, i & 0xff, 0.0f);
+        // Instead of initializing with SoaVector3f, Vector3f is used here to mitigate pressure to memory bandwidth
+        // Some (most?) machines can't keep up with reading 288BB (=3*SoaVector3f) every several cycles in the case of AVX 8 lanes for one core
+        // Note that this can allow the compiler to optimize to use scalar floating point instructions when the target function is inlined
+        tri.v0 = Vector3f(i, 0.0f, 0.0f);
+        tri.v1 = Vector3f(1.0f, 0.0f, 1.0f/(i + 1));
+        tri.v2 = Vector3f(0.0f, i & 0xff, 0.0f);
     }
 
     {
         ScopePerf perf(&us);
 
-        SoaMask mask; mask.setAll(true);
-        SoaMask swapXZ; swapXZ.setAll(false);
-        SoaMask swapYZ; swapYZ.setAll(false);
+        SoaMask mask(SoaConstants::kFullLaneMask);
+        SoaMask swapXZ(0);
+        SoaMask swapYZ(0);
 
         for (uint32_t i = 0; i < kNum; i++) {
             auto& tri = tris[i];
@@ -198,7 +202,6 @@ void test_perf_n_bbox()
         bbox.lower = Vector3f(-1.0f, -i*0.2f, 0.0f);
         bbox.upper = Vector3f(1.0f, i*2.0f, i & 0xff + 1);
     }
-
 
     SoaVector3f o(0.4f, 0.0f, -1.0f);
     SoaVector3f d(0.0f, 0.0f, 1.0f);
@@ -309,10 +312,11 @@ void test_thread_pool()
     for (uint32_t i = 0; i < 16; i++) {
         pool.queue([i]() {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            printf("sleep %u\n", i);
+            printf("%u ", i);
         });
     }
     pool.waitAllTasksDone();
+    printf("Finished\n");
 }
 
 

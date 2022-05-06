@@ -1027,11 +1027,11 @@ struct BBox
 {
     static constexpr float kNoHit = std::numeric_limits<float>::infinity();
 
-    float intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir) const;
-    bool intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir, float maxT) const;
+    inline float intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir) const;
+    inline bool intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir, float maxT) const;
 
-    SoaFloat intersect(const SoaVector3f& org, const SoaVector3f& dir, const SoaVector3f& invDir) const;
-    SoaMask intersect(const SoaVector3f& org, const SoaVector3f& dir, const SoaVector3f& invDir, const SoaFloat& maxT) const;
+    inline SoaFloat intersect(const SoaVector3f& org, const SoaVector3f& dir, const SoaVector3f& invDir) const;
+    inline SoaMask intersect(const SoaVector3f& org, const SoaVector3f& dir, const SoaVector3f& invDir, const SoaFloat& maxT) const;
 
     bool contains(const Vector3f& p) const;
 
@@ -1061,7 +1061,6 @@ inline SoaInt::SoaInt(const SoaFloat& f)
     m_i = AVX_INT(cvtps_epi32)(f.m_f);
 #endif
 }
-
 
 
 inline float dot(const Vector2f& v0, const Vector2f& v1)
@@ -1315,20 +1314,124 @@ inline floatvec4_t floatvec4(float x, float y, float z, float w)
 #endif
 }
 
-/*
-inline SoaVector3f select(const SoaVector3f& v0, const SoaVector3f& v1, const SoaMask& mask)
+
+float BBox::intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir) const
 {
-#if defined(R_NEON)
-    return SoaVector3f();
-#else
-    SoaVector3f r;
-    r.m_x = _mm_blendv_ps(v0.getRawX(), v1.getRawX(), mask.m_mask);
-    r.m_x = _mm_blendv_ps(v0.getRawY(), v1.getRawY(), mask.m_mask);
-    r.m_x = _mm_blendv_ps(v0.getRawZ(), v1.getRawZ(), mask.m_mask);
-    return r;
-#endif
+#if 1
+    auto vlower = floatvec4(lower.x, lower.y, lower.z, -1.0f);
+    auto vupper = floatvec4(upper.x, upper.y, upper.z, 1.0f);
+    auto vorg = floatvec4(org.x, org.y, org.z, 0.0f);
+    auto vinvDir = floatvec4(invDir.x, invDir.y, invDir.z, 1.0f/0.0f);
+
+    auto tmp_t0 = mul(sub(vlower, vorg), vinvDir);
+    auto tmp_t1 = mul(sub(vupper, vorg), vinvDir);
+
+    auto t0 = min(tmp_t0, tmp_t1);
+    auto t1 = max(tmp_t0, tmp_t1);
+
+    auto max_t0 = reduceMax4(t0);
+    auto min_t1 = reduceMin4(t1);
+
+    if (min_t1 < max_t0) {
+        return kNoHit;
     }
-*/
+
+    return max_t0;
+#else
+    auto tmp_t0 = (lower - org)*invDir;
+    auto tmp_t1 = (upper - org)*invDir;
+
+    auto t0 = min(tmp_t0, tmp_t1);
+    auto t1 = max(tmp_t0, tmp_t1);
+
+    auto max_t0 = std::max(t0.x, std::max(t0.y, t0.z));
+    auto min_t1 = std::min(t1.x, std::min(t1.y, t1.z));
+
+    if (min_t1 < max_t0) {
+        return kNoHit;
+    }
+
+    // inside bbox
+    if (max_t0 < 0.0f) {
+        return 0.0f;
+    }
+
+    return max_t0;
+#endif
+}
+
+
+bool BBox::intersect(const Vector3f& org, const Vector3f& dir, const Vector3f& invDir, float maxT) const
+{
+#if 1
+    auto vlower = floatvec4(lower.x, lower.y, lower.z, std::numeric_limits<float>::lowest());
+    auto vupper = floatvec4(upper.x, upper.y, upper.z, maxT);
+    auto vorg = floatvec4(org.x, org.y, org.z, 0.0f);
+    auto vinvDir = floatvec4(invDir.x, invDir.y, invDir.z, 1.0f);
+
+    auto tmp_t0 = mul(sub(vlower, vorg), vinvDir);
+    auto tmp_t1 = mul(sub(vupper, vorg), vinvDir);
+
+    auto t0 = min(tmp_t0, tmp_t1);
+    auto t1 = max(tmp_t0, tmp_t1);
+
+    auto max_t0 = reduceMax4(t0);
+    auto min_t1 = reduceMin4(t1);
+
+    return min_t1 > max_t0;
+#else
+    auto tmp_t0 = (lower - org)*invDir;
+    auto tmp_t1 = (upper - org)*invDir;
+
+    auto t0 = min(tmp_t0, tmp_t1);
+    auto t1 = max(tmp_t0, tmp_t1);
+
+    auto max_t0 = std::max(t0.x, std::max(t0.y, t0.z));
+    auto min_t1 = std::min(t1.x, std::min(t1.y, t1.z));
+
+    return (min_t1 > max_t0 && max_t0 < maxT);
+#endif
+}
+
+
+SoaFloat BBox::intersect(const SoaVector3f& org, const SoaVector3f& dir, const SoaVector3f& invDir) const
+{
+    auto tmp_t0 = (SoaVector3f(lower) - org)*invDir;
+    auto tmp_t1 = (SoaVector3f(upper) - org)*invDir;
+
+    auto t0 = tmp_t0.min(tmp_t1);
+    auto t1 = tmp_t0.max(tmp_t1);
+
+    auto max_t0 = t0.maximumElement();
+    auto min_t1 = t1.minimumElement();
+
+    auto mask = min_t1.greaterThanOrEqual(max_t0);
+
+    SoaFloat r(max_t0);
+    r = select(kNoHit, r, mask);
+
+    // inside box
+    auto temp = select(max_t0, 0.0f, max_t0.lessThan(0.0f));
+
+    return select(r, temp, mask);
+}
+
+SoaMask BBox::intersect(const SoaVector3f& org, const SoaVector3f& dir, const SoaVector3f& invDir, const SoaFloat& maxT) const
+{
+    auto tmp_t0 = (SoaVector3f(lower) - org)*invDir;
+    auto tmp_t1 = (SoaVector3f(upper) - org)*invDir;
+
+    auto t0 = tmp_t0.min(tmp_t1);
+    auto t1 = tmp_t0.max(tmp_t1);
+
+    auto max_t0 = t0.maximumElement();
+    auto min_t1 = t1.minimumElement();
+
+    auto mask = min_t1.greaterThanOrEqual(max_t0);
+
+    return max_t0.lessThan(maxT) & mask;
+}
+
 
 } // namespace prt
 

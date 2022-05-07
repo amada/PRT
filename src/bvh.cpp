@@ -204,28 +204,21 @@ void Bvh::build(Mesh&& mesh)
 
     LinearBvhNode* nodes = new LinearBvhNode[context.nodeCount];
 
-#ifdef TRI_VECTOR
     uint32_t primNodeCount = 0;
-#endif
+
     logPrintf(LogLevel::kVerbose, "LinearBvhNode (count=%u, size=%.3fMiB)\n", context.nodeCount.load(), context.nodeCount*sizeof(LinearBvhNode)/1024.0f/1024.0f);
     for (uint32_t i = 0; i < sizeof(context.primCountInNode)/sizeof(context.primCountInNode[0]); i++) {
         logPrintf(LogLevel::kVerbose, "([%u] %u) ", i + 1, context.primCountInNode[i].load());
-#ifdef TRI_VECTOR
         primNodeCount += context.primCountInNode[i];
-#endif
     }
     logPrintf(LogLevel::kVerbose, "\n");
 
-#ifdef TRI_VECTOR
     m_triangleVectors = new TriangleVector[primNodeCount];
-#endif
     int32_t triVectorIndex = 0;
     int32_t index = 0;
     buildLinearBvhNodes(nodes, &index, rootBuildNode, &triVectorIndex);
 
-#ifdef TRI_VECTOR
     logPrintf(LogLevel::kVerbose, "TriangleVector %d\n", triVectorIndex);
-#endif
     auto end = std::chrono::steady_clock::now();
 
     auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -254,9 +247,10 @@ void Bvh::buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode
 
         l.primOrSecondNodeIndex = primRemapIndex;
         l.primCount = primCount;
-#ifdef TRI_VECTOR
+
         auto& m = m_mesh;
 
+        // Generate triangle vector data
         Vector3f p[Mesh::kVertexCountPerPrim][TriangleVector::kSize];
         Vector2f uv[Mesh::kVertexCountPerPrim][TriangleVector::kSize];
 
@@ -299,7 +293,6 @@ void Bvh::buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode
 
         l.triVectorIndex = *triVectorIndex;
         (*triVectorIndex)++;
-#endif
     }
 
     delete node;

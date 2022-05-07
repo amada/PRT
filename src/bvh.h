@@ -46,8 +46,6 @@ private:
     int16_t m_splitAxis = 0;
 };
 
-#define TRI_VECTOR
-
 struct LinearBvhNode
 {
     const static uint32_t kInternalNode = 0xf;

@@ -203,6 +203,8 @@ Mesh SampleModels::getCornellBox(bool box)
     memcpy(mesh.getMaterialBuffer(), &materials[0], materials.size()*sizeof(Material));
     memset(mesh.getTexcoordBuffer(), 0, mesh.getVertexCount()*sizeof(Vector2f));
 
+    mesh.calculateBounds();
+
     return mesh;
 }
 

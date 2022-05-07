@@ -72,7 +72,7 @@ void test_vecmath()
         SoaMask m0; m0.setAll(true);
         SoaMask m1; m1.setAll(true);
         m0 = m0.computeNot();
-        m1 = m0 & m1;
+        m1 = m0 && m1;
         ASSERT_I_EQUAL(m0.getLane(0), 0);
         ASSERT_I_EQUAL(m1.getLane(0), 0);
     }

@@ -118,28 +118,28 @@ struct RayPacketMask
         }
     }
 
-    RayPacketMask operator&(const RayPacketMask& other) const {
+    RayPacketMask operator&&(const RayPacketMask& other) const {
         RayPacketMask result;
         for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
-            result.masks[i] = masks[i] & other.masks[i];
+            result.masks[i] = masks[i] && other.masks[i];
         }
         return result;
     }
 
-    RayPacketMask operator|(const RayPacketMask& other) const {
+    RayPacketMask operator||(const RayPacketMask& other) const {
         RayPacketMask result;
         for (uint32_t i = 0; i < RayPacket::kVectorCount; i++) {
-            result.masks[i] = masks[i] | other.masks[i];
+            result.masks[i] = masks[i] || other.masks[i];
         }
         return result;
     }
 
     void computeAndSelf(uint32_t v, const SoaMask& mask) {
-        masks[v] = masks[v] & mask;
+        masks[v] = masks[v] && mask;
     }
 
     void computeOrSelf(uint32_t v, const SoaMask& mask) {
-        masks[v] = masks[v] | mask;
+        masks[v] = masks[v] || mask;
     }
 
     RayPacketMask computeNot() const {

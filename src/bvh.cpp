@@ -320,8 +320,7 @@ inline bool intersectSingleRay(const TriangleVector& tri, SingleRayHitPacket* _h
 
         intr[v] = intersectTriangle(mask, packet.ray.org, packet.ray.dir, packet.ray.swapXZ, packet.ray.swapYZ, p0, p1, p2);
 
-        mask = intr[v].t.greaterThanOrEqual(epsilon) & intr[v].t.lessThan(maxT);
-
+        mask = intr[v].t >= epsilon && intr[v].t < maxT;
 
         for (auto bits = mask.ballot(); bits; bits &= bits -1) {
             auto index = bitScanForward(bits);
@@ -390,9 +389,9 @@ inline RayPacketMask intersectRayPacket(const TriangleVector& tri, const RayPack
 
             SoaMask maskHit;
             if constexpr (mode == kNearest) {
-                maskHit = intr.t.greaterThanOrEqual(epsilon) & intr.t.lessThan(hit.t);
+                maskHit = intr.t >= epsilon && intr.t < hit.t;
             } else if constexpr (mode == kOcclude) {
-                maskHit = intr.t.greaterThanOrEqual(epsilon) & intr.t.lessThan(ray.maxT);
+                maskHit = intr.t >= epsilon && intr.t < ray.maxT;
             }
 
             if (maskHit.anyTrue()) {
@@ -594,7 +593,7 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
         auto node = nodes[current];
         auto mask = masks[current];
 
-        mask = mask & occludeMask.computeNot();
+        mask = mask && occludeMask.computeNot();
 
         bool hit;
 
@@ -638,7 +637,7 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
             } else if constexpr (std::is_same<R, RayPacket>::value) {
                 auto res = intersectRayPacket<kOcclude>(tri, mask, nullptr, packet, m, &m_primRemapping[primIndexPreMap], primCount, kEpsilon);
 
-                occludeMask = occludeMask | res;
+                occludeMask = occludeMask || res;
                 if (occludeMask.allTrue())
                     return occludeMask;
             }

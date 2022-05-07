@@ -79,7 +79,7 @@ T Scene::occluded(const RayPacketMask& mask, const R& packet) const
             if (res)
                 return res;
         } else if constexpr (std::is_same<R, RayPacket>::value) {
-            occludeMask = occludeMask | res;
+            occludeMask = occludeMask || res;
             if (occludeMask.allTrue())
                 return occludeMask;
         }

@@ -367,12 +367,16 @@ public:
 #endif
     }
 
-    SoaMask operator|(const SoaMask& m) const {
+    SoaMask operator||(const SoaMask& m) const {
         return computeOr(m);
     }
 
-    SoaMask operator&(const SoaMask& m) const {
+    SoaMask operator&&(const SoaMask& m) const {
         return computeAnd(m);
+    }
+
+    SoaMask operator!() const {
+        return computeNot();
     }
 
     int32_t moveMask() const {
@@ -521,8 +525,7 @@ public:
 #endif
     }
 
-
-    SoaMask lessThan(const SoaFloat& f) {
+    SoaMask lessThan(const SoaFloat& f) const {
 #if defined(R_NEON)
         return vcltq_f32(m_f, f.m_f);
 #elif defined(R_AVX4L) || defined(R_AVX8L)
@@ -530,7 +533,7 @@ public:
 #endif
     }
 
-    SoaMask lessThanOrEqual(const SoaFloat& f) {
+    SoaMask lessThanOrEqual(const SoaFloat& f) const {
 #if defined(R_NEON)
         return vcleq_f32(m_f, f.m_f);
 #elif defined(R_AVX4L) || defined(R_AVX8L)
@@ -538,7 +541,7 @@ public:
 #endif
     }
 
-    SoaMask greaterThan(const SoaFloat& f) {
+    SoaMask greaterThan(const SoaFloat& f) const {
 #if defined(R_NEON)
         return vcgtq_f32(m_f, f.m_f);
 #elif defined(R_AVX4L) || defined(R_AVX8L)
@@ -546,7 +549,7 @@ public:
 #endif
     }
 
-    SoaMask greaterThanOrEqual(const SoaFloat& f) {
+    SoaMask greaterThanOrEqual(const SoaFloat& f) const {
 #if defined(R_NEON)
         return vcgeq_f32(m_f, f.m_f);
 #elif defined(R_AVX4L) || defined(R_AVX8L)
@@ -612,6 +615,30 @@ public:
 #elif defined(R_AVX4L) || defined(R_AVX8L)
         return AVX_INT(div_ps)(AVX_INT(set1_ps)(f), v.m_f);
 #endif
+    }
+
+    SoaMask operator<(const SoaFloat& f) const {
+        return lessThan(f);
+    }
+
+    SoaMask operator<=(const SoaFloat& f) const {
+        return lessThanOrEqual(f);
+    }
+
+    SoaMask operator>(const SoaFloat& f) const {
+        return greaterThan(f);
+    }
+
+    SoaMask operator>=(const SoaFloat& f) const {
+        return greaterThanOrEqual(f);
+    }
+
+    SoaMask operator==(const SoaFloat& f) const {
+        return equals(f);
+    }
+
+    SoaMask operator!=(const SoaFloat& f) const {
+        return notEquals(f);
     }
 
 private:
@@ -1405,13 +1432,13 @@ SoaFloat BBox::intersect(const SoaVector3f& org, const SoaVector3f& dir, const S
     auto max_t0 = t0.maximumElement();
     auto min_t1 = t1.minimumElement();
 
-    auto mask = min_t1.greaterThanOrEqual(max_t0);
+    auto mask = min_t1 >= max_t0;
 
     SoaFloat r(max_t0);
     r = select(kNoHit, r, mask);
 
     // inside box
-    auto temp = select(max_t0, 0.0f, max_t0.lessThan(0.0f));
+    auto temp = select(max_t0, 0.0f, max_t0 < 0.0f);
 
     return select(r, temp, mask);
 }
@@ -1427,9 +1454,9 @@ SoaMask BBox::intersect(const SoaVector3f& org, const SoaVector3f& dir, const So
     auto max_t0 = t0.maximumElement();
     auto min_t1 = t1.minimumElement();
 
-    auto mask = min_t1.greaterThanOrEqual(max_t0);
+    auto mask = min_t1 >= max_t0;
 
-    return max_t0.lessThan(maxT) & mask;
+    return max_t0 < maxT && mask;
 }
 
 

@@ -129,10 +129,9 @@ SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3
 
     auto mask = _mask;
 
-    auto mask_eb = (e0.lessThan(0.0f) | e1.lessThan(0.0f) | e2.lessThan(0.0f))
-        & (e0.greaterThan(0.0f) | e1.greaterThan(0.0f) | e2.greaterThan(0.0f));
+    auto mask_eb = (e0 < 0.0f || e1 < 0.0f || e2 < 0.0f) && (e0 > 0.0f || e1 > 0.0f || e2 > 0.0f);
 
-    mask = mask & mask_eb.computeNot();
+    mask = mask && !mask_eb;
 
     if (!mask.anyTrue()) {
         SoaTriangleIntersection res;
@@ -142,18 +141,10 @@ SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3
 
     auto det = e0 + e1 + e2;
 
-    mask = mask & det.notEquals(0.0f);
+    mask = mask && det != 0.0f;
 
-//    res.t = select(SoaTriangleIntersection::kNoIntersection, res.t, mask);
+    // Do not return here in case det == 0.0f as it's supposed to be uncommon
 
-//    mask_det0 = mask_det0.computeNot();
-#if 0
-    if (!mask.anyTrue()) {
-        SoaTriangleIntersection res;
-        res.t = SoaTriangleIntersection::kNoIntersection;
-        return res;
-    }
-#endif
     auto inv_det = 1.0f/det;
 
     auto t_scaled = (e0*v0z + e1*v1z + e2*v2z)*inv_dz;
@@ -162,7 +153,7 @@ SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3
 
     // Calculate barycentric coordiante i, j, k
 
-    mask = mask & t.greaterThan(kEpsilon);
+    mask = mask && t > kEpsilon;
 
     SoaTriangleIntersection r;
 

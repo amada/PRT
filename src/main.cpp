@@ -18,27 +18,23 @@
 
 using namespace prt;
 
-#if 1
-const uint32_t kWidth = 1024;
-const uint32_t kHeight = 1024;
-#else
-const uint32_t kWidth = 1280;
-const uint32_t kHeight = 720;
-#endif
-
 #define DATA_DIR "../../data/"
 
-
-void setupCornellBox(Scene& scene, Camera& camera, bool withTeapot)
+void setupCornellBox(Scene& scene, Camera& camera, uint32_t width, uint32_t height)
 {
     auto cbox = new Bvh;;
     cbox->build(SampleModels::getCornellBox(true));
     scene.add(cbox);
 
+    bool withTeapot = true;
     if (withTeapot) {
+        Material mat;
+        mat.init();
+        mat.diffuse = {0.9f, 0.9f, 0.9f};
+        mat.reflectionType = ReflectionType::kSpecular;
+
         Mesh teapot;
-        teapot.loadObj(DATA_DIR "teapot/teapot.obj",
-                       {.diffuse = Vector3f{0.9f, 0.9f, 0.9f}, .reflectionType = ReflectionType::kSpecular});
+        teapot.loadObj(DATA_DIR "teapot/teapot.obj", mat);
 
         auto pos = teapot.getPositionBuffer();
 
@@ -48,16 +44,17 @@ void setupCornellBox(Scene& scene, Camera& camera, bool withTeapot)
             pos[i] = s * pos[i] + Vector3f(-0.5f, 0.0f, 0.5f);
         }
         teapot.calculateVertexNormals();
+        teapot.calculateBounds();
         auto teapotBvh = new Bvh;
 
         teapotBvh->build(std::move(teapot));
         scene.add(teapotBvh);
     }
 
-    camera.create({0, 0.965, 2.6}, {0, 0, -1.0f}, kWidth, kHeight);
+    camera.create({0, 0.965, 2.6}, {0, 0, -1.0f}, width, height);
 }
 
-void setupSponza(Scene& scene, Camera& camera)
+void setupSponza(Scene& scene, Camera& camera, uint32_t width, uint32_t height)
 {
     Mesh sponza;
     sponza.loadObj(DATA_DIR "sponza/sponza.obj");
@@ -66,15 +63,15 @@ void setupSponza(Scene& scene, Camera& camera)
     auto sponzaBvh = new Bvh;;
     sponzaBvh->build(std::move(sponza));
 
-//    scene.setDirectionalLight(normalize(Vector3f(0.05f, 1.0f, 0.1f)), Vector3f(16.7f, 15.6f, 11.7f)); // sky.exr
-    scene.setInfiniteAreaLight(DATA_DIR "skylight-day.exr");
+    scene.setDirectionalLight(normalize(Vector3f(0.05f, 1.0f, 0.1f)), Vector3f(16.7f, 15.6f, 11.7f)); // sky.exr
+//    scene.setInfiniteAreaLight(DATA_DIR "skylight-day.exr");
 
     scene.add(sponzaBvh);
 
-    camera.create({-10, 320.0, 0.0}, {0.5, -0.162612f, -0.1}, kWidth, kHeight); // Sponza
+    camera.create({-10, 320.0, 0.0}, {0.5, -0.162612f, -0.1}, width, height);
 }
 
-void setupSanMiguelLowPoly(Scene& scene, Camera& camera)
+void setupSanMiguelLowPoly(Scene& scene, Camera& camera, uint32_t width, uint32_t height)
 {
     Mesh sanMiguel;
     sanMiguel.loadObj(DATA_DIR "san-miguel/san-miguel-low-poly.obj");
@@ -83,17 +80,17 @@ void setupSanMiguelLowPoly(Scene& scene, Camera& camera)
     auto sanMiguelBvh = new Bvh;
     sanMiguelBvh->build(std::move(sanMiguel));
 
-//    scene.setDirectionalLight(normalize(Vector3f(0.2f, 1.0f, 0.2f)), Vector3f(16.7f, 15.6f, 11.7f)); // sky.exr
-    scene.setInfiniteAreaLight(DATA_DIR "skylight-day.exr");
+    scene.setDirectionalLight(normalize(Vector3f(0.2f, 1.0f, 0.2f)), Vector3f(16.7f, 15.6f, 11.7f)); // sky.exr
+//    scene.setInfiniteAreaLight(DATA_DIR "skylight-day.exr");
 
     scene.add(sanMiguelBvh);
 
-    camera.create({9, 2.0, 10.2}, {0.4, 0.1, -1}, kWidth, kHeight); // San Miguel
+    camera.create({9, 2.0, 10.2}, {0.4, 0.1, -1}, width, height);
 }
 
-void raytrace_scene()
+void raytrace_scene(uint32_t width, uint32_t height, const char* imagePath, void (*setupFunc)(Scene&, Camera&, uint32_t, uint32_t))
 {
-    Image image(kWidth, kHeight);
+    Image image(width, height);
 
     ThreadPool threadPool;
 
@@ -101,29 +98,27 @@ void raytrace_scene()
     Camera camera;
 
     scene.init();
-    setupCornellBox(scene, camera, true);
-//    setupSponza(scene, camera);
-//    setupSanMiguelLowPoly(scene, camera);
+    setupFunc(scene, camera, width, height);
 
     auto start = std::chrono::steady_clock::now();
     threadPool.create(0);
 
     const uint32_t kTileWidth = 16;
     const uint32_t kTileHeight = 16;
-    const uint32_t kSamples = 32;
+    const uint32_t kSamples = 64;
 
     TotalStats totalStats;
     totalStats.clear();
 
     uint32_t totalTasks = 0;
 
-    for (uint32_t y = 0; y < kHeight; y += kTileHeight) {
+    for (uint32_t y = 0; y < height; y += kTileHeight) {
         auto y0 = y;
-        auto y1 = std::min(y + kTileHeight, kHeight - 1);
+        auto y1 = std::min(y + kTileHeight, height - 1);
 
-        for (uint32_t x = 0; x < kWidth; x += kTileWidth) {
+        for (uint32_t x = 0; x < width; x += kTileWidth) {
             auto x0 = x;
-            auto x1 = std::min(x + kTileWidth, kWidth - 1);
+            auto x1 = std::min(x + kTileWidth, width - 1);
 
             threadPool.queue([&image, x0, y0, x1, y1, &scene, &camera, &totalStats]() {
 
@@ -175,12 +170,14 @@ void raytrace_scene()
     sec = sec - 60*minute;
     printf("%um%us (%.3fms) @%uspp\n", minute, sec, ms, kSamples);
 
-    image.saveToPpm("cornell_box.ppm");
+    image.saveToPpm(imagePath);
 }
 
 int main(int argc, char** argv)
 {
-    raytrace_scene();
+    raytrace_scene(1024, 1024, "cornell_box.ppm", setupCornellBox);
+//    raytrace_scene(1600, 900, "san_miguel.ppm", setupSanMiguelLowPoly);
+//    raytrace_scene(1600, 900, "sponza.ppm", setupSponza);
 
     return 0;
 }

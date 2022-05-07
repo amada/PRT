@@ -563,19 +563,14 @@ void Bvh::intersect(T& hitPacket, const R& packet, const TraverseStackCache* sta
 #ifdef PRT_ENABLE_STATS
             hitPacket.stats.primsTraversed += primCount;
 #endif
-// TODO: give all primIndex to m.intersect? rather than loop?
             int32_t primIndexPreMap = node->primOrSecondNodeIndex;
 
-#ifdef TRI_VECTOR
             auto& tri = m_triangleVectors[node->triVectorIndex];
             if constexpr (std::is_same<R, SingleRayPacket>::value) {
                 intersectSingleRay<kNearest>(tri, &hitPacket, packet, m, &m_primRemapping[primIndexPreMap], primCount, kEpsilon, hitPacket.hit.t);
             } else if constexpr (std::is_same<R, RayPacket>::value) {
                 intersectRayPacket<kNearest>(tri, mask, &hitPacket, packet, m, &m_primRemapping[primIndexPreMap], primCount, kEpsilon);
             }
-#else
-            m.intersect(hitPacket, mask, packet, &m_primRemapping[primIndexPreMap], primCount);
-#endif
         }
 
         current--;
@@ -643,7 +638,6 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
 
             int32_t primIndexPreMap = node->primOrSecondNodeIndex;
 
-#ifdef TRI_VECTOR
             auto& tri = m_triangleVectors[node->triVectorIndex];
             if constexpr (std::is_same<R, SingleRayPacket>::value) {
                 if (intersectSingleRay<kOcclude>(tri, nullptr, packet, m, &m_primRemapping[primIndexPreMap], primCount, kEpsilon, packet.ray.maxT))
@@ -655,21 +649,6 @@ T Bvh::occluded(const RayPacketMask& _mask, const R& packet) const
                 if (occludeMask.allTrue())
                     return occludeMask;
             }
-#else
-            static_assert(SoaConstants::kLaneCount >= BvhBuildNode::kMaxPrimCountInNode, "Lanes must be more than max primitives in leaf node");
-
-            if constexpr (std::is_same<R, SingleRayPacket>::value) {
-                if (m.occluded<bool, SingleRayPacket>(mask, packet, &m_primRemapping[primIndexPreMap], primCount))
-                    return true;
-            } else if constexpr (std::is_same<R, RayPacket>::value) {
-                auto omask = m.occluded<RayPacketMask, RayPacket>(mask, packet, &m_primRemapping[primIndexPreMap], primCount);
-
-                occludeMask = occludeMask | omask;
-                if (occludeMask.allTrue())
-                    return occludeMask;
-            }
-#endif
-
         }
 
         current--;

@@ -48,17 +48,12 @@ public:
     // Add texcoordCount
     void create(uint32_t primCount, uint32_t vertexCount, uint32_t materialCount, bool hasVertexNormal);
 
-    template<typename T, typename R>
-    void intersect(T& hitPacket, const RayPacketMask& mask, const R& packet, const uint32_t* primIndices, const uint32_t primCount) const;
-
-    template<typename T, typename R>
-    T occluded(const RayPacketMask& mask, const R& packet, const uint32_t* primIndices, uint32_t primCount) const;
-
     template<typename T, typename U>
     void getSurfaceProperties(T& properties, const U& hit) const;
 
     const BBox& getBBox() const { return m_bbox; }
     void calculateVertexNormals();
+    void calculateBounds();
 
     uint32_t getPrimCount() const { return m_indexCount/kVertexCountPerPrim; }
     uint32_t getIndexCount() const { return m_indexCount; }
@@ -88,8 +83,6 @@ public:
 
 private:
     static constexpr float kEpsilon = 0.0001f;
-
-    void calculateBounds();
 
     uint32_t* m_indices = nullptr;
     uint32_t* m_texcoordIndices = nullptr;

@@ -173,9 +173,12 @@ void Mesh::loadObj(const char* path, const Material& mat)
         for (auto i: srcIndices) {
             indices.push_back(i.vertex_index);
             texcoordIndices.push_back(i.vertex_index);
-            uint32_t b;
-            b = 2*i.texcoord_index;
-            tex[i.vertex_index] = Vector2f(attr.texcoords[b], attr.texcoords[b + 1]);        
+            if (i.texcoord_index >= 0) {
+                auto b = 2*i.texcoord_index;
+                tex[i.vertex_index] = Vector2f(attr.texcoords[b], 1.0f - attr.texcoords[b + 1]);
+            } else {
+                tex[i.vertex_index] = 0.0f;
+            }            
         }
     }
 
@@ -256,9 +259,12 @@ void Mesh::loadObj(const char* path)
             indices.push_back(i.vertex_index);
 //            texcoordIndices.push_back(i.texcoord_index);
             texcoordIndices.push_back(i.vertex_index);
-            uint32_t b;
-            b = 2*i.texcoord_index;
-            tex[i.vertex_index] = Vector2f(attr.texcoords[b], 1.0f - attr.texcoords[b + 1]);
+            if (i.texcoord_index >= 0) {
+                auto b = 2*i.texcoord_index;
+                tex[i.vertex_index] = Vector2f(attr.texcoords[b], 1.0f - attr.texcoords[b + 1]);
+            } else {
+                tex[i.vertex_index] = 0.0f;
+            }
         }
 
         primMat.insert(primMat.end(), s.mesh.material_ids.begin(), s.mesh.material_ids.end());
@@ -298,8 +304,6 @@ void Mesh::calculateBounds()
     for (uint32_t i = 0; i < m_vertexCount; i++) {
         bbox.merge(m_positions[i]);
     }
-
-    bbox.print();
 
     m_bbox = bbox;
 }

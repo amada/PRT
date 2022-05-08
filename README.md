@@ -68,9 +68,31 @@ Cornell Box + Teapot
 San Miguel
 ----------
 ![San Miguel](images/san_miguel.png)
+
 san-miguel-low-poly from https://casual-effects.com/data/
 
 Sponza
 ------
 ![Sponza](images/sponza.jpg)
+
 Crytek Sponza from https://casual-effects.com/data/
+
+Zero-Day
+------
+![Zero-Day](images/zero_day.jpg)
+
+https://developer.nvidia.com/orca/beeple-zero-day
+
+
+External repositories
+---------------------
+* [stb](https://github.com/nothings/stb)
+* [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader)
+* [Tiny OpenEXR image library](https://github.com/syoyo/tinyexr)
+
+References
+----------
+* [Physically Based Rendering From Theory to Implementation](https://www.pbr-book.org/)
+* [Watertight Ray/Triangle Intersection](https://jcgt.org/published/0002/01/05/)
+* [Fast, minimum storage ray/triangle intersection](https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm)
+* [Spatial Splits in Bounding Volume Hierarchies](https://www.nvidia.in/docs/IO/77714/sbvh.pdf)

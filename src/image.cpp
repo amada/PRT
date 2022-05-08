@@ -7,7 +7,8 @@
 namespace prt
 {
 
-Image::Image(uint32_t width, uint32_t height, bool tonemap) : m_width(width), m_height(height), m_tonemap(tonemap)
+Image::Image(uint32_t width, uint32_t height, bool tonemap, float exposure)
+    : m_width(width), m_height(height), m_tonemap(tonemap), m_exposure(exposure)
 {
     size_t size = 3*width*height;
     m_pixels = new uint8_t[size];
@@ -18,6 +19,15 @@ Image::~Image()
 {
     delete[] m_pixels;
     m_pixels = nullptr;
+}
+
+void Image::writePixel(uint32_t x, uint32_t y, const Vector3f& color) {
+    auto c = m_exposure*color;
+    c = m_tonemap ? c/(c + 1) : c;
+    const uint32_t indexBase = (x + y*m_width)*kChannelsPerPixel;
+    m_pixels[indexBase + 0] = gamma(clamp(c.x, 0.0f, 1.0f))*0xff;
+    m_pixels[indexBase + 1] = gamma(clamp(c.y, 0.0f, 1.0f))*0xff;
+    m_pixels[indexBase + 2] = gamma(clamp(c.z, 0.0f, 1.0f))*0xff;
 }
 
 void Image::saveToPpm(const char* path) const

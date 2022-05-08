@@ -8,18 +8,11 @@ namespace prt
 class Image
 {
 public:
-    Image(uint32_t width, uint32_t height, bool tonemap = true);
+    Image(uint32_t width, uint32_t height, bool tonemap = true, float exposure = 1.0f);
     virtual ~Image();
 
-    void writePixel(uint32_t x, uint32_t y, const Vector3f& color) {
-        auto c = m_tonemap ? color/(color + 1) : color;
-        const uint32_t indexBase = (x + y*m_width)*kChannelsPerPixel;
-        m_pixels[indexBase + 0] = gamma(clamp(c.x, 0.0f, 1.0f))*0xff;
-        m_pixels[indexBase + 1] = gamma(clamp(c.y, 0.0f, 1.0f))*0xff;
-        m_pixels[indexBase + 2] = gamma(clamp(c.z, 0.0f, 1.0f))*0xff;
-    }
-
-    void saveToPpm(const char* path) const; // saveToPpm
+    void writePixel(uint32_t x, uint32_t y, const Vector3f& color);
+    void saveToPpm(const char* path) const;
 
     uint32_t getWidth() const { return m_width; }
     uint32_t getHeigit() const { return m_height; }
@@ -34,6 +27,7 @@ private:
     uint32_t m_width;
     uint32_t m_height;
     bool m_tonemap;
+    float m_exposure;
 };
 
 } // namespace prt

@@ -134,11 +134,11 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const RayHitPacket& hit
             auto normal = normals[path];
             auto prop = props[path];
             
-            if (material->emissive.x != 0) {
-                result[path] = result[path] + beta[path]*material->emissive;
+            if (material->emissive.isNonZero()) {
+                result[path] = result[path] + beta[path]*material->emissive*material->sampleDiffuse(prop.uv);
             }
 
-            if (material->reflectionType == ReflectionType::kDiffuse) {
+            if (rand.generate() < 0.8f) {
                 float r2 = rand.generate();
                 float r2sq = std::sqrt(r2);
                 float r1 = rand.generate();
@@ -171,21 +171,11 @@ Vector3f PathTracer::ComputeRadiance(const Scene& scene, const RayHitPacket& hit
                     lightIntensity[path] = light.intensity;
                     directLighting = true;
                 }
-            } else if (material->reflectionType == ReflectionType::kSpecular) {
-                float r2 = rand.generate();
-                float r2sq = std::sqrt(r2);
-                float r1 = rand.generate();
-                Vector3f u = (fabsf(normal.x) > 0.1f) ? Vector3f(0, 1.0f, 0.0f) : Vector3f(1.0f, 0, 0);
-                auto tangent = normalize(cross(normal, u));
-                auto binormal = normalize(cross(tangent, normal));
-
-                float theta = 2.0f*kPi*r1;
-                // Cosine-weighted distribution
-                auto diffuseDir = r2sq*std::cos(theta) * binormal + r2sq*std::sin(theta)*tangent + (1 - r2)*normal;
+            } else {
                 auto rdir = rayDir[path];
                 auto reflectDir = rdir - normal*2*dot(normal, rdir);
 
-                nextRayDir[path] = 0.9f*reflectDir + 0.1f*diffuseDir;
+                nextRayDir[path] = reflectDir;
             }
         }
 

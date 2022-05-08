@@ -20,7 +20,7 @@ using namespace prt;
 
 #define DATA_DIR "../../data/"
 
-void setupCornellBox(Scene& scene, Camera& camera, uint32_t width, uint32_t height)
+void setupCornellBox(Scene& scene, Camera& camera, float& exposure, uint32_t width, uint32_t height)
 {
     auto cbox = new Bvh;;
     cbox->build(SampleModels::getCornellBox(true));
@@ -52,9 +52,10 @@ void setupCornellBox(Scene& scene, Camera& camera, uint32_t width, uint32_t heig
     }
 
     camera.create({0, 0.965, 2.6}, {0, 0, -1.0f}, width, height);
+    exposure = 1.0f;
 }
 
-void setupSponza(Scene& scene, Camera& camera, uint32_t width, uint32_t height)
+void setupSponza(Scene& scene, Camera& camera, float& exposure, uint32_t width, uint32_t height)
 {
     Mesh sponza;
     sponza.loadObj(DATA_DIR "sponza/sponza.obj");
@@ -69,9 +70,10 @@ void setupSponza(Scene& scene, Camera& camera, uint32_t width, uint32_t height)
     scene.add(sponzaBvh);
 
     camera.create({-10, 320.0, 0.0}, {0.5, -0.162612f, -0.1}, width, height);
+    exposure = 1.0f;
 }
 
-void setupSanMiguelLowPoly(Scene& scene, Camera& camera, uint32_t width, uint32_t height)
+void setupSanMiguelLowPoly(Scene& scene, Camera& camera, float& exposure, uint32_t width, uint32_t height)
 {
     Mesh sanMiguel;
     sanMiguel.loadObj(DATA_DIR "san-miguel/san-miguel-low-poly.obj");
@@ -86,19 +88,35 @@ void setupSanMiguelLowPoly(Scene& scene, Camera& camera, uint32_t width, uint32_
     scene.add(sanMiguelBvh);
 
     camera.create({9, 2.0, 10.2}, {0.4, 0.1, -1}, width, height);
+    exposure = 1.0f;
 }
 
-void raytrace_scene(uint32_t width, uint32_t height, const char* imagePath, void (*setupFunc)(Scene&, Camera&, uint32_t, uint32_t))
+void setupZeroDay(Scene& scene, Camera& camera, float& exposure, uint32_t width, uint32_t height)
 {
-    Image image(width, height);
+    Mesh zeroDay;
+    zeroDay.loadObj("../../../../data/zero-day-measure-seven/zero-day-measure-seven.obj");
 
+    auto zeroDayBvh = new Bvh;
+    zeroDayBvh->build(std::move(zeroDay));
+
+    scene.add(zeroDayBvh);
+
+    camera.create({-1, 0.0, 0.2}, {-1.5, -0.1, -1}, width, height);
+    exposure = 64.0f;
+}
+
+void raytrace_scene(uint32_t width, uint32_t height, const char* imagePath, void (*setupFunc)(Scene&, Camera&, float&, uint32_t, uint32_t))
+{
     ThreadPool threadPool;
 
     Scene scene;
     Camera camera;
+    float exposure;
 
     scene.init();
-    setupFunc(scene, camera, width, height);
+    setupFunc(scene, camera, exposure, width, height);
+
+    Image image(width, height, true, exposure);
 
     auto start = std::chrono::steady_clock::now();
     threadPool.create(0);
@@ -178,6 +196,7 @@ int main(int argc, char** argv)
     raytrace_scene(1024, 1024, "cornell_box.ppm", setupCornellBox);
 //    raytrace_scene(1600, 900, "san_miguel.ppm", setupSanMiguelLowPoly);
 //    raytrace_scene(1600, 900, "sponza.ppm", setupSponza);
+//    raytrace_scene(1600, 900, "zero_day.ppm", setupZeroDay);
 
     return 0;
 }

@@ -1167,6 +1167,11 @@ inline Vector3f normalize(const Vector3f& v)
     return invlen*v;
 }
 
+inline bool isnan(const Vector3f& v)
+{
+    return std::isnan(v.x) || std::isnan(v.y) || std::isnan(v.z);
+}
+
 inline SoaInt operator+(int32_t i0, const SoaInt& i1) {
     return SoaInt(i0) + i1;
 }

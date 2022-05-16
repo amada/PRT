@@ -1,3 +1,4 @@
+#include "prt.h"
 #include "log.h"
 #include "vecmath.h"
 #include "triangle.h"
@@ -14,6 +15,15 @@ void InfiniteAreaLight::init()
     m_width = 0;
     m_height = 0;
     m_verticalP = nullptr;
+    m_horizontalP = nullptr;
+}
+
+void InfiniteAreaLight::release()
+{
+    delete[] m_verticalP;
+    m_verticalP = nullptr;
+
+    delete[] m_horizontalP;
     m_horizontalP = nullptr;
 }
 
@@ -46,8 +56,10 @@ void InfiniteAreaLight::create(const char* path)
             hsum += l;
         }
 
-        vert[y] = hsum;
-        vsum += hsum;
+        float sinPhi = std::sin(kPi*(y + 0.5f)/height);
+
+        vert[y] = hsum*sinPhi;
+        vsum += hsum*sinPhi;
 
         auto invH = 1.0f/hsum;
         auto accumH = 0.0f;
@@ -74,32 +86,41 @@ void InfiniteAreaLight::sample(Vector3f& dir, Vector3f& color, const Vector2f& u
     // Pick up sampling point where higher probability is more likely to be selected
     // TODO bisect
     int32_t y;
+    float pdfV = 1.0f;
     float yf = 0.0f;
     for (y = 1; y < m_height; y++) {
         if (m_verticalP[y] > u.y) {
             float prev = m_verticalP[y - 1];
-            yf = y + (u.y - prev)/(m_verticalP[y] - prev) - 1.0f;
+            float pdf = (m_verticalP[y] - prev);
+            if (pdf == 0.0f) // TODO: should give a chance to pick
+                continue;
+            pdfV = pdf;
+            yf = y + (u.y - prev)/pdfV - 1.0f;
             break;
         }
     }
 
+    float pdfH = 1.0f;
     float xf = 0.0f;
     for (int32_t x = 1; x < m_width; x++) {
         if (m_horizontalP[x + y*m_width] > u.x) {
             float prev = m_horizontalP[x - 1 + y*m_width];
-            xf = x + (u.x - prev)/(m_horizontalP[x + y*m_width] - prev) - 1.0f;
+            float pdf = m_horizontalP[x + y*m_width] - prev;
+            if (pdf == 0.0f) // TODO: should give a chance to pick
+                continue;
+            pdfH = pdf;
+            xf = x + (u.x - prev)/pdfH - 1.0f;
             break;
         }
     }
 
     const Vector2f uv(xf/m_width, yf/m_height);
-//    const Vector2f uv(0.92f, 0.15f);
 
     color = m_image.sample<Vector3f>(uv);
+    color = color/(pdfH*pdfV)/(m_width*m_height);
 
 //    float theta = 2.0f*kPi*uv.x;
-//    float theta = 2.0f*kPi*(uv.x + 0.5f); // For Sponza
-    float theta = 2.0f*kPi*(uv.x + 0.5f);
+    float theta = 2.0f*kPi*(uv.x + 0.5f); // For Sponza
     float phi = kPi*uv.y;
     float sinPhi = std::sin(phi);
 

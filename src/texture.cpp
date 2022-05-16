@@ -33,11 +33,14 @@ inline void computeBilinearIndicesAndWeights(float* k, int32_t* indices, int32_t
     float s = uv.x - std::floor(uv.x);
     float t = uv.y - std::floor(uv.y);
 
+    float xt = std::max(s*width - 0.5f, 0.0f);
+    float yt = std::max(t*height - 0.5f, 0.0f);
+
     int32_t x[2];
-    x[0] = std::floor(s*(width - 1));
+    x[0] = std::floor(xt);
     x[1] = std::min(x[0] + 1, width - 1);
     int32_t y[2];
-    y[0] = std::floor(t*(height - 1));
+    y[0] = std::floor(yt);
     y[1] = std::min(y[0] + 1, height - 1);
 
     indices[0] = component*(x[0] + y[0]*width);
@@ -45,6 +48,8 @@ inline void computeBilinearIndicesAndWeights(float* k, int32_t* indices, int32_t
     indices[2] = component*(x[0] + y[1]*width);
     indices[3] = component*(x[1] + y[1]*width);
 
+    s = xt - x[0];
+    t = yt - y[0];
     k[0] = (1.0f - s)*(1.0f - t);
     k[1] = s*(1.0f - t);
     k[2] = (1.0f - s)*t;
@@ -56,11 +61,14 @@ inline void computeBilinearIndicesAndWeights(SoaFloat* k, SoaInt* indices, int32
     auto s = uv.getX() - floor(uv.getX());
     auto t = uv.getY() - floor(uv.getY());
 
+    auto xt = max(s*width - 0.5f, 0.0f);
+    auto yt = max(t*height - 0.5f, 0.0f);
+
     SoaInt x[2];
-    x[0] = floor(s*(width - 1));
+    x[0] = floor(xt);
     x[1] = min(x[0] + 1, width - 1);
     SoaInt y[2];
-    y[0] = floor(t*(height - 1));
+    y[0] = floor(yt);
     y[1] = min(y[0] + 1, height - 1);
 
     indices[0] = component*(x[0] + y[0]*width);
@@ -68,6 +76,8 @@ inline void computeBilinearIndicesAndWeights(SoaFloat* k, SoaInt* indices, int32
     indices[2] = component*(x[0] + y[1]*width);
     indices[3] = component*(x[1] + y[1]*width);
 
+    s = xt - x[0];
+    t = yt - y[0];
     k[0] = (1.0f - s)*(1.0f - t);
     k[1] = s*(1.0f - t);
     k[2] = (1.0f - s)*t;

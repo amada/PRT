@@ -420,6 +420,7 @@ class SoaFloat;
 
 class SoaInt
 {
+    friend class SoaFloat;
 public:
     SoaInt() = default;
     SoaInt(int i) {
@@ -481,6 +482,14 @@ public:
         m_f = vdupq_n_f32(f);
 #elif defined(R_AVX4L) || defined(R_AVX8L)
         m_f = AVX_INT(set1_ps)(f);
+#endif
+    }
+
+    SoaFloat(const SoaInt& i) {
+#if defined(R_NEON)
+        m_f = vcvtq_f32_s32(i.m_i);
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+        m_f = AVX_INT(cvtepi32_ps)(i.m_i);
 #endif
     }
 
@@ -1188,6 +1197,14 @@ inline SoaInt min(const SoaInt& a, const SoaInt& b) {
 #endif
 }
 
+inline SoaInt max(const SoaInt& a, const SoaInt& b) {
+#if defined(R_NEON)
+    return vmaxq_s32(a.getRawValue(), b.getRawValue());
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    return AVX_INT(max_epi32)(a.getRawValue(), b.getRawValue());
+#endif
+}
+
 
 inline SoaFloat operator-(float f0, const SoaFloat& f1) {
     return SoaFloat(f0) - f1;
@@ -1202,6 +1219,14 @@ inline SoaFloat min(const SoaFloat& a, const SoaFloat& b) {
     return vminq_f32(a.getRawValue(), b.getRawValue());
 #elif defined(R_AVX4L) || defined(R_AVX8L)
     return AVX_INT(min_ps)(a.getRawValue(), b.getRawValue());
+#endif
+}
+
+inline SoaFloat max(const SoaFloat& a, const SoaFloat& b) {
+#if defined(R_NEON)
+    return vmaxq_f32(a.getRawValue(), b.getRawValue());
+#elif defined(R_AVX4L) || defined(R_AVX8L)
+    return AVX_INT(max_ps)(a.getRawValue(), b.getRawValue());
 #endif
 }
 

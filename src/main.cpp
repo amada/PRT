@@ -12,8 +12,7 @@
 #include "camera.h"
 #include "bvh.h"
 #include "scene.h"
-#include "diffuse_visualizer.h"
-#include "normal_visualizer.h"
+#include "gbuffer_visualizer.h"
 #include "path_tracer.h"
 
 using namespace prt;
@@ -141,8 +140,7 @@ void raytrace_scene(uint32_t width, uint32_t height, const char* imagePath, void
             threadPool.queue([&image, x0, y0, x1, y1, &scene, &camera, &totalStats]() {
 
 #if 0
-//                DiffuseVisualizer visualizer;
-                NormalVisualizer visualizer;
+                GbufferVisualizer visualizer(GbufferVisualizer::Type::kMeshNormal);
                 visualizer.TraceBlock(image, x0, y0, x1, y1, scene, camera);
 #else
                 PathTracer tracer;

@@ -12,18 +12,17 @@ public:
     virtual ~Image();
 
     void writePixel(uint32_t x, uint32_t y, const Vector3f& color);
-    void saveToPpm(const char* path) const;
+    void savePpm(const char* path) const;
+    void saveExr(const char* path) const;
 
     uint32_t getWidth() const { return m_width; }
     uint32_t getHeigit() const { return m_height; }
 private:
     const static uint32_t kChannelsPerPixel = 3;
-    float gamma(float f)
-    {
-        return pow(f, 1/2.2f);
-    }
 
-    uint8_t* m_pixels;
+
+    float* m_pixels;
+//    uint8_t* m_pixels;
     uint32_t m_width;
     uint32_t m_height;
     bool m_tonemap;

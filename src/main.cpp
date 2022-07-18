@@ -186,15 +186,15 @@ void raytrace_scene(uint32_t width, uint32_t height, const char* imagePath, void
     sec = sec - 60*minute;
     printf("%um%us (%.3fms) @%uspp\n", minute, sec, ms, kSamples);
 
-    image.saveToPpm(imagePath);
+    image.saveExr(imagePath);
 }
 
 int main(int argc, char** argv)
 {
-    raytrace_scene(1024, 1024, "cornell_box.ppm", setupCornellBox);
-//    raytrace_scene(1600, 900, "san_miguel.ppm", setupSanMiguelLowPoly);
-//    raytrace_scene(1600, 900, "sponza.ppm", setupSponza);
-//    raytrace_scene(1600, 900, "zero_day.ppm", setupZeroDay);
+    raytrace_scene(1024, 1024, "cornell_box.exr", setupCornellBox);
+//    raytrace_scene(1600, 900, "san_miguel.exr", setupSanMiguelLowPoly);
+//    raytrace_scene(1600, 900, "sponza.exr", setupSponza);
+//    raytrace_scene(1600, 900, "zero_day.exr", setupZeroDay);
 
     return 0;
 }

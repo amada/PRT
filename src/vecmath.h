@@ -1142,14 +1142,15 @@ inline Vector3f abs(const Vector3f& v)
     return Vector3f(std::abs(v.x), std::abs(v.y), std::abs(v.z));
 }
 
-
 inline float clamp(float f, float x, float y)
 {
-    if (f < x) return x;
-    if (f > y) return y;
-    return f;
+    return std::fmin(std::fmax(f, x), y);
 }
 
+inline Vector3f clamp(const Vector3f& v, float l, float u)
+{
+    return Vector3f(clamp(v.x, l, u), clamp(v.y, l, u), clamp(v.z, l, u));
+}
 
 inline float dot(const Vector3f& v0, const Vector3f& v1)
 {

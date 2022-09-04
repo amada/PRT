@@ -118,7 +118,7 @@ SoaTriangleIntersection intersectTriangle(const SoaMask& _mask, const SoaVector3
     auto inv_dz = 1.0f/d.getZ();
     auto invDzD = inv_dz*d;
 
-    // This leads to difference in precision compared to scalar version of ray-intersection
+    // This leads to difference in precision compared to scalar version of ray-triangle intersection
     v0r = v0r - v0r.getZ()*invDzD;
     v1r = v1r - v1r.getZ()*invDzD;
     v2r = v2r - v2r.getZ()*invDzD;

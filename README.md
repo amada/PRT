@@ -96,3 +96,4 @@ References
 * [Watertight Ray/Triangle Intersection](https://jcgt.org/published/0002/01/05/)
 * [Fast, minimum storage ray/triangle intersection](https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm)
 * [Spatial Splits in Bounding Volume Hierarchies](https://www.nvidia.in/docs/IO/77714/sbvh.pdf)
+* [Getting rid of packets - Efficient SIMD single-ray traversal using multi-branching BVHs -](http://www.cs.cmu.edu/afs/cs/academic/class/15869-f11/www/readings/wald08_widebvh.pdf)

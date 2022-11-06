@@ -10,10 +10,10 @@
 
 using namespace prt;
 
-#define ASSERT_F_EQUAL(x, y) { if ((x) != (y)) { printf("Equal assertion failed (%f != %f) at line %d in %s\n", (x), (y), __LINE__, __FILE__); __builtin_trap(); }}
-#define ASSERT_F_EPEQUAL(x, y) { if (std::abs((x) - (y)) > 0.0001f){ printf("Epsillon equal assertion failed (%f != %f) at line %d in %s\n", (x), (y), __LINE__, __FILE__); __builtin_trap(); }}
+#define ASSERT_F_EQUAL(x, y) { if ((x) != (y)) { printf("Equal assertion failed (%f != %f) at line %d in %s\n", (x), (y), __LINE__, __FILE__); PRT_DEBUGBREAK(); }}
+#define ASSERT_F_EPEQUAL(x, y) { if (std::abs((x) - (y)) > 0.0001f){ printf("Epsillon equal assertion failed (%f != %f) at line %d in %s\n", (x), (y), __LINE__, __FILE__); PRT_DEBUGBREAK(); }}
 
-#define ASSERT_I_EQUAL(x, y) { if ((x) != (y)) { printf("Equal assertion failed (%d != %d) at line %d in %s\n", (x), (y), __LINE__, __FILE__); __builtin_trap(); }}
+#define ASSERT_I_EQUAL(x, y) { if ((x) != (y)) { printf("Equal assertion failed (%d != %d) at line %d in %s\n", (x), (y), __LINE__, __FILE__); PRT_DEBUGBREAK(); }}
 
 // Apple M1 performance core clock
 const static uint32_t kCpuClk = 3200u*1000u*1000u;

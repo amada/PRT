@@ -36,9 +36,9 @@ void Scene::getSurfaceProperties(T& properties, const U& hit) const
 
         mesh.getSurfaceProperties(properties, hit);
      } else if constexpr (std::is_same<U, SoaRayHit>::value) {
-        __builtin_trap();
+         PRT_DEBUGBREAK();
     } else {
-        __builtin_trap();
+         PRT_DEBUGBREAK();
     }
 }
 

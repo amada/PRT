@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include "prt.h"
 #include "log.h"
 
 namespace prt
@@ -12,7 +13,7 @@ void logPrintf(LogLevel level, const char* format...)
     case LogLevel::kVerbose: break;
     case LogLevel::kError: printf("ERROR: "); break;
     default:
-        __builtin_trap();
+        PRT_DEBUGBREAK();
     };
 
     va_list args;

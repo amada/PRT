@@ -23,7 +23,7 @@ namespace prt
 Mesh::Mesh(Mesh&& m)
 {
     // TODO is this needed?
-    __builtin_trap();
+    PRT_DEBUGBREAK();
     m_indices = m.m_indices;
     m_positions = m.m_positions;
     m_normals = m.m_normals;
@@ -363,9 +363,9 @@ void Mesh::getSurfaceProperties(T& prop, const U& hit) const
         prop.duv02 = safeNormalize(t2 - t0);
 
     } else if constexpr (std::is_same<U, SoaRayHit>::value) {
-        __builtin_trap();
+        PRT_DEBUGBREAK();
     } else {
-        __builtin_trap();
+        PRT_DEBUGBREAK();
     }
 }
 

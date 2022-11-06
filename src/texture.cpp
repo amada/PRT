@@ -124,7 +124,7 @@ T Texture::sample(const Vector2f& uv) const
             c = c + k[i]*p[base + 0];
         } else {
             printf("Unsupported texture type");
-            __builtin_trap();
+            PRT_DEBUGBREAK();
         }
     }
 

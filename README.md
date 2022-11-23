@@ -1,4 +1,4 @@
-prt - Playground for Ray Tracing
+PRT - Playground for Ray Tracing
 ================================
 
 This is a playground repository for ray tracing-related experiments. The implementation is done from scratch, using CPU, and referencing various resources, especially [Physically Based Rendering From Theory to Implementation](https://www.pbr-book.org/).
@@ -49,7 +49,7 @@ Supported platforms
 -------------------
 The code is developed primarily on macOS, but should work on other platforms.
 * macOS x86/Apple M1
-* Windows
+* Windows/ARM/x64
 * Raspberry Pi
 
 

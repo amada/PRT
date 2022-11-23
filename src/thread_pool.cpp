@@ -20,7 +20,7 @@ void ThreadPool::create(int32_t threadCount)
     m_threadCount = threadCount;
     if (m_workers) delete[] m_workers;
     m_workers = new std::thread[threadCount];
-    for (uint32_t i = 0; i < threadCount; i++) {
+    for (uint32_t i = 0; i < m_threadCount; i++) {
         m_workers[i] = std::thread([this]() { this->workerThreadRun(); });
     }
 }

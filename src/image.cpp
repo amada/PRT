@@ -63,9 +63,9 @@ void Image::savePpm(const char* path) const
         Vector3f c(m_pixels[indexBase + 0], m_pixels[indexBase +1], m_pixels[indexBase + 2]);
         c = m_tonemap ? c/(c + 1) : c;
         c = gamma(clamp(c, 0.0f, 1.0f))*0xff;
-        pixels[indexBase + 0] = c.x;
-        pixels[indexBase + 1] = c.y;
-        pixels[indexBase + 2] = c.z;
+        pixels[indexBase + 0] = static_cast<uint8_t>(c.x);
+        pixels[indexBase + 1] = static_cast<uint8_t>(c.y);
+        pixels[indexBase + 2] = static_cast<uint8_t>(c.z);
     }
 
     fprintf(fp, "P6\n");

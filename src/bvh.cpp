@@ -63,7 +63,7 @@ void BvhBuildNode::build(BuildContext& context, int32_t start, int32_t end, int3
 
     // Check cost for every dimension for SAH
     for (uint32_t dim = 0; dim < VectorConstants::kDimensions; dim++) {
-        const float splitExtent = extent.v[dim] == 0.0 ? 0.0001 : extent.v[dim]; // Maybe skip this dim
+        const float splitExtent = extent.v[dim] == 0.0f ? 0.0001f : extent.v[dim]; // Maybe skip this dim
         const float lowerPos = bbox.lower.v[dim];
         struct Bucket {
             uint32_t count = 0;
@@ -84,7 +84,7 @@ void BvhBuildNode::build(BuildContext& context, int32_t start, int32_t end, int3
             }
             temp = 1.0f/Mesh::kVertexCountPerPrim*temp;
 
-            int32_t b = kBucketCount*(temp.v[dim] - lowerPos)/splitExtent;
+            int32_t b = static_cast<int32_t>(kBucketCount*(temp.v[dim] - lowerPos)/splitExtent);
             if (b >= kBucketCount) b = kBucketCount - 1;
             if (b < 0) { b = 0; }
 
@@ -118,7 +118,7 @@ void BvhBuildNode::build(BuildContext& context, int32_t start, int32_t end, int3
     }
 
     const uint32_t dim = lowestDim;
-    const float splitExtent = extent.v[dim] == 0.0 ? 0.0001 : extent.v[dim];
+    const float splitExtent = extent.v[dim] == 0.0f ? 0.0001f : extent.v[dim];
     const float lowerPos = bbox.lower.v[dim];
 
     float splitPos = lowerPos + (lowestCostSplit + 1)*splitExtent/kBucketCount;
@@ -256,7 +256,7 @@ void Bvh::buildLinearBvhNodes(LinearBvhNode* nodes, int32_t* index, BvhBuildNode
 
         int32_t alphaTest[TriangleVector::kSize];
 
-        for (uint32_t i = 0; i < primCount; i++) {
+        for (int32_t i = 0; i < primCount; i++) {
             uint32_t indexBase = m_primRemapping[primRemapIndex + i]*Mesh::kVertexCountPerPrim;
 
             auto mat = m.getMaterial(m.getPrimToMaterial(m_primRemapping[primRemapIndex + i]));
@@ -448,7 +448,7 @@ void Bvh::intersect(T& hitPacket, const R& packet, const TraverseStackCache* sta
     if (stackCache) {
         memcpy(nodes, stackCache->nodes, sizeof(LinearBvhNode*)*stackCache->size);
         current = stackCache->size - 1;
-        for (uint32_t i = 0; i < stackCache->size; i++)
+        for (int32_t i = 0; i < stackCache->size; i++)
             masks[i].setAll(true);
     }
 
@@ -702,7 +702,7 @@ void Bvh::createStackCache(TraverseStackCache& stackCache, const Vector3f& pos, 
 
     // Remove null node pointers
     stackCache.size = 0;
-    for (uint32_t i = 0; i < nodeCount; i++) {
+    for (int32_t i = 0; i < nodeCount; i++) {
         if (nodes[i] != nullptr) {
             stackCache.nodes[stackCache.size] = nodes[i];
             stackCache.size++;

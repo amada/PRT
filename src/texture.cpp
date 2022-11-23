@@ -37,10 +37,10 @@ inline void computeBilinearIndicesAndWeights(float* k, int32_t* indices, int32_t
     float yt = std::max(t*height - 0.5f, 0.0f);
 
     int32_t x[2];
-    x[0] = std::floor(xt);
+    x[0] = static_cast<int32_t>(std::floor(xt));
     x[1] = std::min(x[0] + 1, width - 1);
     int32_t y[2];
-    y[0] = std::floor(yt);
+    y[0] = static_cast<int32_t>(std::floor(yt));
     y[1] = std::min(y[0] + 1, height - 1);
 
     indices[0] = component*(x[0] + y[0]*width);
@@ -61,8 +61,8 @@ inline void computeBilinearIndicesAndWeights(SoaFloat* k, SoaInt* indices, int32
     auto s = uv.getX() - floor(uv.getX());
     auto t = uv.getY() - floor(uv.getY());
 
-    auto xt = max(s*width - 0.5f, 0.0f);
-    auto yt = max(t*height - 0.5f, 0.0f);
+    auto xt = max(s*static_cast<float>(width) - 0.5f, 0.0f);
+    auto yt = max(t*static_cast<float>(height) - 0.5f, 0.0f);
 
     SoaInt x[2];
     x[0] = floor(xt);
@@ -94,6 +94,7 @@ T Texture::sample(const Vector2f& uv) const
     }
 
     PRT_ASSERT(false);
+    return T();
 }
 
 template float Texture::sample<float>(const Vector2f&) const;
@@ -193,7 +194,7 @@ void convertNormalToBump(uint8_t* bump, const uint8_t* normal, uint32_t width, u
             auto n = normalize(Vector3f(nx, ny, nz));
 
             uint32_t bindex = x + y*width;
-            bump[bindex] = 0xff*clamp(n.z*n.z*n.z*n.z, 0.0f, 1.0f);
+            bump[bindex] = static_cast<uint8_t>(0xff*clamp(n.z*n.z*n.z*n.z, 0.0f, 1.0f));
         }
     }
 }
@@ -284,7 +285,7 @@ void Texture::loadExr(const char* path)
 
     TempBuffer temp(exrSize);
     auto exrBuffer = temp.buffer;
-    res = fread(exrBuffer, exrSize, 1, fp);
+    res = static_cast<int32_t>(fread(exrBuffer, exrSize, 1, fp));
     PRT_ASSERT(res == 1);
     fclose(fp);
 

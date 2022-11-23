@@ -159,7 +159,7 @@ namespace prt
 	}
 #endif
 
-	static const float kPi = 3.14159265358979323846;
+	static const float kPi = 3.14159265358979323846f;
 
 
 	class Vector2f
